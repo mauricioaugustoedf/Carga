@@ -1,0 +1,1647 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Carga — Progressão de Treino</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #FFFFFF; --surface: #F4F4F4; --surface-2: #EAEAEA;
+    --text: #0A0A0A; --dim: #6B6B6B; --border: #E1E1E1;
+    --red: #E23324; --red-dim: #FCE7E5; --green: #1E8E5A; --amber: #B8860B;
+  }
+  :root[data-theme="dark"] {
+    --bg: #0A0A0A; --surface: #161616; --surface-2: #1F1F1F;
+    --text: #FAFAFA; --dim: #9C9C9C; --border: #2A2A2A;
+    --red: #FF4433; --red-dim: #2B1210; --green: #34C77B; --amber: #E0B84B;
+  }
+  * { -webkit-tap-highlight-color: transparent; }
+  html, body { background: var(--bg); color: var(--text); }
+  body { font-family: 'Inter', system-ui, sans-serif; overscroll-behavior-y: contain; }
+  .num, .headline { font-family: 'Archivo Black', 'Inter', sans-serif; letter-spacing: -0.01em; }
+  .surface { background: var(--surface); border: 1px solid var(--border); }
+  .surface2 { background: var(--surface-2); }
+  .border-c { border-color: var(--border); }
+  .text-dim { color: var(--dim); }
+  .text-red { color: var(--red); }
+  .bg-red { background: var(--red); }
+  .bg-red-dim { background: var(--red-dim); }
+  .text-green { color: var(--green); }
+  .text-amber { color: var(--amber); }
+  ::-webkit-scrollbar { display: none; }
+  .btn-big { min-height: 56px; }
+  .press:active { transform: scale(0.97); }
+  .tap { transition: transform .08s ease; }
+  input[type=range] { -webkit-appearance: none; height: 6px; border-radius: 4px; background: var(--surface-2); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 26px; height: 26px; border-radius: 50%; background: var(--red); border: 3px solid var(--bg); box-shadow: 0 0 0 1px var(--border); cursor: pointer; }
+  input[type=number], input[type=text], select, textarea { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+  input[type=number]:focus, input[type=text]:focus, select:focus, textarea:focus { outline: 2px solid var(--red); outline-offset: -1px; }
+  .fade-in { animation: fadeIn .18s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px);} to { opacity: 1; transform: translateY(0);} }
+  .pulse-ring { animation: ring 2s ease-in-out infinite; }
+  @keyframes ring { 0%,100%{ opacity: 1; } 50%{ opacity: .55; } }
+  .nav-item.active { color: var(--red); }
+  .scrollx { overflow-x: auto; scrollbar-width: none; }
+  @media (prefers-reduced-motion: reduce) { .fade-in, .pulse-ring { animation: none; } }
+</style>
+</head>
+<body>
+<div id="app" class="max-w-md mx-auto min-h-screen pb-24 relative"></div>
+
+<script>
+/* ============================= BIBLIOTECA DE EXERCÍCIOS ============================= */
+const MUSC = {
+  peito:'Peito', deltoide_ant:'Deltoide anterior', deltoide_lat:'Deltoide lateral', deltoide_post:'Deltoide posterior',
+  biceps:'Bíceps', triceps:'Tríceps', antebraco:'Antebraço', abdomen:'Abdômen', obliquos:'Oblíquos',
+  quadriceps:'Quadríceps', posteriores:'Posteriores de coxa', gluteos:'Glúteos', adutores:'Adutores',
+  panturrilha:'Panturrilha', dorsais:'Dorsais', trapezio:'Trapézio', lombar:'Lombar'
+};
+const GRUPOS = ['Peito','Costas','Ombros','Trapézio','Bíceps','Tríceps','Antebraço','Abdômen','Quadríceps','Posteriores','Glúteos','Adutores','Panturrilha'];
+const GRUPO_PRIM = {'Peito':['peito'],'Costas':['dorsais'],'Ombros':['deltoide_lat'],'Trapézio':['trapezio'],'Bíceps':['biceps'],'Tríceps':['triceps'],'Antebraço':['antebraco'],'Abdômen':['abdomen'],'Quadríceps':['quadriceps'],'Posteriores':['posteriores'],'Glúteos':['gluteos'],'Adutores':['adutores'],'Panturrilha':['panturrilha']};
+const EQUIP_LABEL = {barra:'Barra', halter:'Halteres', maquina:'Máquina', polia:'Polia', smith:'Smith', kettlebell:'Kettlebell', 'peso-corporal':'Peso corporal'};
+function L(id,nome,tipo,incremento,grupo,equip,prim,sec){ return {id,nome,tipo,incremento,grupo,equip,prim:prim.split(' ').filter(Boolean),sec:(sec||'').split(' ').filter(Boolean)}; }
+const LIB = [
+  // Peito
+  L('supino-reto','Supino Reto','composto',2.5,'Peito','barra','peito','deltoide_ant triceps'),
+  L('supino-inclinado','Supino Inclinado','composto',2.5,'Peito','barra','peito','deltoide_ant triceps'),
+  L('supino-declinado','Supino Declinado','composto',2.5,'Peito','barra','peito','triceps'),
+  L('supino-reto-halter','Supino Reto com Halteres','peso-livre',2,'Peito','halter','peito','deltoide_ant triceps'),
+  L('supino-inclinado-halter','Supino Inclinado com Halteres','peso-livre',2,'Peito','halter','peito','deltoide_ant triceps'),
+  L('supino-maquina','Supino na Máquina','maquina',5,'Peito','maquina','peito','deltoide_ant triceps'),
+  L('supino-inclinado-smith','Supino Inclinado no Smith','composto',2.5,'Peito','smith','peito','deltoide_ant triceps'),
+  L('crucifixo-halter','Crucifixo com Halteres','isolado',1,'Peito','halter','peito','deltoide_ant'),
+  L('peck-deck','Crucifixo na Máquina (Peck Deck)','maquina',5,'Peito','maquina','peito','deltoide_ant'),
+  L('crossover','Crossover na Polia','isolado',2.5,'Peito','polia','peito','deltoide_ant'),
+  L('crossover-baixo','Crossover de Baixo para Cima','isolado',2.5,'Peito','polia','peito','deltoide_ant'),
+  L('flexao','Flexão de Braço','peso-corporal',0,'Peito','peso-corporal','peito','triceps deltoide_ant abdomen'),
+  L('paralelas','Mergulho nas Paralelas','peso-corporal',0,'Peito','peso-corporal','peito triceps','deltoide_ant'),
+  L('pullover','Pullover com Halter','peso-livre',2,'Peito','halter','peito dorsais','triceps'),
+  // Costas
+  L('barra-fixa','Barra Fixa','peso-corporal',0,'Costas','peso-corporal','dorsais','biceps trapezio antebraco'),
+  L('barra-fixa-supinada','Barra Fixa Supinada','peso-corporal',0,'Costas','peso-corporal','dorsais biceps','antebraco'),
+  L('puxada-frontal','Puxada Frontal','maquina',5,'Costas','polia','dorsais','biceps deltoide_post'),
+  L('puxada-triangulo','Puxada com Triângulo','maquina',5,'Costas','polia','dorsais','biceps'),
+  L('puxada-supinada','Puxada Supinada','maquina',5,'Costas','polia','dorsais','biceps'),
+  L('remada-curvada','Remada Curvada','composto',2.5,'Costas','barra','dorsais trapezio','biceps deltoide_post lombar'),
+  L('remada-baixa','Remada Baixa','maquina',5,'Costas','polia','dorsais','biceps trapezio deltoide_post'),
+  L('remada-unilateral','Remada Unilateral com Halter (Serrote)','peso-livre',2,'Costas','halter','dorsais','biceps deltoide_post'),
+  L('remada-cavalinho','Remada Cavalinho (T-Bar)','composto',2.5,'Costas','barra','dorsais trapezio','biceps deltoide_post'),
+  L('remada-maquina','Remada na Máquina','maquina',5,'Costas','maquina','dorsais trapezio','biceps deltoide_post'),
+  L('pulldown-reto','Pulldown com Braços Estendidos','isolado',2.5,'Costas','polia','dorsais','triceps'),
+  L('remada-invertida','Remada Invertida','peso-corporal',0,'Costas','peso-corporal','dorsais','biceps deltoide_post'),
+  L('terra','Levantamento Terra','composto',5,'Costas','barra','lombar gluteos posteriores','trapezio quadriceps antebraco dorsais'),
+  L('hiperextensao','Hiperextensão Lombar (Banco Romano)','peso-corporal',0,'Costas','peso-corporal','lombar','gluteos posteriores'),
+  // Trapézio
+  L('encolhimento','Encolhimento com Halteres','peso-livre',2,'Trapézio','halter','trapezio','antebraco'),
+  L('encolhimento-barra','Encolhimento com Barra','peso-livre',2.5,'Trapézio','barra','trapezio','antebraco'),
+  // Ombros
+  L('desenv-militar','Desenvolvimento Militar','composto',2,'Ombros','barra','deltoide_ant','deltoide_lat triceps'),
+  L('desenv-halter','Desenvolvimento com Halteres','peso-livre',2,'Ombros','halter','deltoide_ant','deltoide_lat triceps'),
+  L('desenv-maquina','Desenvolvimento na Máquina','maquina',5,'Ombros','maquina','deltoide_ant','deltoide_lat triceps'),
+  L('desenv-arnold','Desenvolvimento Arnold','peso-livre',2,'Ombros','halter','deltoide_ant deltoide_lat','triceps'),
+  L('elev-lateral','Elevação Lateral','isolado',1,'Ombros','halter','deltoide_lat','trapezio'),
+  L('elev-lateral-polia','Elevação Lateral na Polia','isolado',2.5,'Ombros','polia','deltoide_lat','trapezio'),
+  L('elev-lateral-maquina','Elevação Lateral na Máquina','maquina',2.5,'Ombros','maquina','deltoide_lat',''),
+  L('elev-frontal','Elevação Frontal','isolado',1,'Ombros','halter','deltoide_ant','peito'),
+  L('crucifixo-inverso','Crucifixo Inverso com Halteres','isolado',1,'Ombros','halter','deltoide_post','trapezio'),
+  L('crucifixo-inverso-maquina','Crucifixo Inverso na Máquina','maquina',2.5,'Ombros','maquina','deltoide_post','trapezio'),
+  L('face-pull','Face Pull','isolado',2.5,'Ombros','polia','deltoide_post','trapezio'),
+  L('remada-alta','Remada Alta','peso-livre',2.5,'Ombros','barra','deltoide_lat trapezio','biceps'),
+  // Bíceps
+  L('rosca-direta','Rosca Direta','isolado',1,'Bíceps','barra','biceps','antebraco'),
+  L('rosca-w','Rosca com Barra W','isolado',1,'Bíceps','barra','biceps','antebraco'),
+  L('rosca-halteres','Rosca Direta com Halteres','isolado',1,'Bíceps','halter','biceps','antebraco'),
+  L('rosca-alternada','Rosca Alternada com Halteres','isolado',1,'Bíceps','halter','biceps','antebraco'),
+  L('rosca-martelo','Rosca Martelo','isolado',1,'Bíceps','halter','biceps','antebraco'),
+  L('rosca-scott','Rosca Scott','isolado',1,'Bíceps','barra','biceps',''),
+  L('rosca-concentrada','Rosca Concentrada','isolado',1,'Bíceps','halter','biceps',''),
+  L('rosca-inclinada','Rosca Inclinada com Halteres','isolado',1,'Bíceps','halter','biceps',''),
+  L('rosca-polia','Rosca na Polia','isolado',2.5,'Bíceps','polia','biceps','antebraco'),
+  // Tríceps
+  L('triceps-pulley','Tríceps Pulley','isolado',2.5,'Tríceps','polia','triceps',''),
+  L('triceps-corda','Tríceps Corda','isolado',2.5,'Tríceps','polia','triceps',''),
+  L('triceps-testa','Tríceps Testa','isolado',1,'Tríceps','barra','triceps',''),
+  L('triceps-frances','Tríceps Francês','isolado',1,'Tríceps','halter','triceps',''),
+  L('triceps-coice','Tríceps Coice','isolado',1,'Tríceps','halter','triceps',''),
+  L('triceps-overhead-polia','Tríceps Overhead na Polia','isolado',2.5,'Tríceps','polia','triceps',''),
+  L('triceps-banco','Mergulho no Banco','peso-corporal',0,'Tríceps','peso-corporal','triceps','peito deltoide_ant'),
+  L('supino-fechado','Supino Fechado','composto',2.5,'Tríceps','barra','triceps','peito deltoide_ant'),
+  // Antebraço
+  L('rosca-punho','Rosca de Punho','isolado',1,'Antebraço','barra','antebraco',''),
+  L('rosca-inversa','Rosca Inversa','isolado',1,'Antebraço','barra','antebraco','biceps'),
+  L('farmer-walk','Caminhada do Fazendeiro','peso-livre',2,'Antebraço','halter','antebraco trapezio','abdomen'),
+  // Abdômen
+  L('abdominal-polia','Abdominal na Polia','isolado',2.5,'Abdômen','polia','abdomen',''),
+  L('abdominal-crunch','Abdominal Crunch','peso-corporal',0,'Abdômen','peso-corporal','abdomen',''),
+  L('abdominal-infra','Abdominal Infra','peso-corporal',0,'Abdômen','peso-corporal','abdomen',''),
+  L('elev-pernas','Elevação de Pernas na Barra','peso-corporal',0,'Abdômen','peso-corporal','abdomen','obliquos'),
+  L('abdominal-obliquo','Abdominal Oblíquo','peso-corporal',0,'Abdômen','peso-corporal','obliquos','abdomen'),
+  L('prancha','Prancha (reps = segundos)','peso-corporal',0,'Abdômen','peso-corporal','abdomen','obliquos'),
+  L('roda-abdominal','Roda Abdominal','peso-corporal',0,'Abdômen','peso-corporal','abdomen','dorsais'),
+  L('pallof','Pallof Press','isolado',2.5,'Abdômen','polia','obliquos','abdomen'),
+  // Quadríceps
+  L('agac-livre','Agachamento Livre','composto',2.5,'Quadríceps','barra','quadriceps gluteos','adutores posteriores lombar'),
+  L('agac-frontal','Agachamento Frontal','composto',2.5,'Quadríceps','barra','quadriceps','gluteos abdomen'),
+  L('agac-goblet','Agachamento Goblet','peso-livre',2,'Quadríceps','halter','quadriceps gluteos','adutores abdomen'),
+  L('agac-smith','Agachamento no Smith','composto',2.5,'Quadríceps','smith','quadriceps gluteos','adutores'),
+  L('agac-pc','Agachamento com Peso Corporal','peso-corporal',0,'Quadríceps','peso-corporal','quadriceps gluteos','adutores'),
+  L('hack','Agachamento Hack','maquina',5,'Quadríceps','maquina','quadriceps','gluteos'),
+  L('leg-press','Leg Press 45°','maquina',10,'Quadríceps','maquina','quadriceps gluteos','adutores posteriores'),
+  L('leg-press-horizontal','Leg Press Horizontal','maquina',5,'Quadríceps','maquina','quadriceps gluteos','adutores'),
+  L('cad-ext','Cadeira Extensora','maquina',5,'Quadríceps','maquina','quadriceps',''),
+  L('afundo','Afundo com Halteres','peso-livre',2,'Quadríceps','halter','quadriceps gluteos','adutores posteriores'),
+  L('bulgaro','Agachamento Búlgaro','peso-livre',2,'Quadríceps','halter','quadriceps gluteos','adutores'),
+  L('passada','Passada (Avanço)','peso-livre',2,'Quadríceps','halter','quadriceps gluteos','posteriores'),
+  L('step-up','Subida no Banco (Step-up)','peso-livre',2,'Quadríceps','halter','quadriceps gluteos',''),
+  // Posteriores
+  L('mesa-flex','Mesa Flexora','maquina',5,'Posteriores','maquina','posteriores','panturrilha'),
+  L('cadeira-flex','Cadeira Flexora','maquina',5,'Posteriores','maquina','posteriores',''),
+  L('flexora-pe','Flexora em Pé Unilateral','maquina',2.5,'Posteriores','maquina','posteriores',''),
+  L('stiff','Stiff','composto',5,'Posteriores','barra','posteriores gluteos','lombar'),
+  L('stiff-halter','Stiff com Halteres','peso-livre',2,'Posteriores','halter','posteriores gluteos','lombar'),
+  L('terra-romeno','Levantamento Terra Romeno','composto',5,'Posteriores','barra','posteriores gluteos','lombar antebraco'),
+  L('good-morning','Bom Dia (Good Morning)','composto',2.5,'Posteriores','barra','posteriores lombar','gluteos'),
+  L('nordica','Flexão Nórdica','peso-corporal',0,'Posteriores','peso-corporal','posteriores',''),
+  // Glúteos
+  L('hip-thrust','Elevação Pélvica (Hip Thrust)','composto',5,'Glúteos','barra','gluteos','posteriores quadriceps'),
+  L('hip-thrust-maquina','Elevação Pélvica na Máquina','maquina',5,'Glúteos','maquina','gluteos','posteriores'),
+  L('ponte-gluteo','Ponte de Glúteo','peso-corporal',0,'Glúteos','peso-corporal','gluteos','posteriores'),
+  L('gluteo-polia','Glúteo na Polia (Coice)','isolado',2.5,'Glúteos','polia','gluteos','posteriores'),
+  L('gluteo-maquina','Glúteo na Máquina (4 Apoios)','maquina',5,'Glúteos','maquina','gluteos','posteriores'),
+  L('abducao','Cadeira Abdutora','maquina',5,'Glúteos','maquina','gluteos',''),
+  L('sumo','Agachamento Sumô','peso-livre',2,'Glúteos','halter','gluteos adutores','quadriceps'),
+  L('kb-swing','Kettlebell Swing','peso-livre',4,'Glúteos','kettlebell','gluteos posteriores','lombar abdomen'),
+  // Adutores
+  L('aducao','Cadeira Adutora','maquina',5,'Adutores','maquina','adutores',''),
+  // Panturrilha
+  L('panturrilha','Panturrilha em Pé','maquina',5,'Panturrilha','maquina','panturrilha',''),
+  L('panturrilha-sentado','Panturrilha Sentado','maquina',5,'Panturrilha','maquina','panturrilha',''),
+  L('panturrilha-leg','Panturrilha no Leg Press','maquina',10,'Panturrilha','maquina','panturrilha',''),
+  L('panturrilha-unilateral','Panturrilha Unilateral com Halter','peso-livre',2,'Panturrilha','halter','panturrilha',''),
+];
+function mergeLibrary(db){
+  if(!Array.isArray(db.exercises)) db.exercises = [];
+  const byId = new Map(db.exercises.map(e=>[e.id,e]));
+  LIB.forEach(Lx=>{
+    const cur = byId.get(Lx.id);
+    if(!cur) db.exercises.push({...Lx, custom:false});
+    else if(!cur.custom){ cur.grupo=Lx.grupo; cur.equip=Lx.equip; cur.prim=Lx.prim; cur.sec=Lx.sec; }
+  });
+  return db;
+}
+
+/* ============================= STORAGE ============================= */
+const DB_KEY = 'cargaAppDB_v1';
+function loadDB(){
+  try {
+    const raw = localStorage.getItem(DB_KEY);
+    if(!raw) return defaultDB();
+    const parsed = JSON.parse(raw);
+    return mergeLibrary(Object.assign(defaultDB(), parsed));
+  } catch(e){ console.error('Erro ao carregar dados', e); return defaultDB(); }
+}
+function saveDB(){
+  try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); }
+  catch(e){ console.error('Erro ao salvar dados', e); toast('Não foi possível salvar. Espaço de armazenamento cheio?'); }
+}
+function defaultDB(){
+  return {
+    profile: null,
+    exercises: defaultExercises(),
+    workouts: [],
+    sessions: [],
+    recovery: [],
+    activeSessionId: null
+  };
+}
+function defaultExercises(){ return LIB.map(e=>({...e, custom:false})); }
+let DB = loadDB();
+
+/* ============================= HELPERS ============================= */
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+function unit(){ return (DB.profile && DB.profile.unit) || 'kg'; }
+function avg(arr){ return arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0; }
+function fmt1(n){ return (Math.round(n*10)/10).toString().replace('.0',''); }
+function todayISO(){ const d=new Date(); return d.toISOString().slice(0,10); }
+function dateBR(iso){ const [y,m,d]=iso.slice(0,10).split('-'); return `${d}/${m}/${y}`; }
+function exName(id){ const e=DB.exercises.find(x=>x.id===id); return e? e.nome : '—'; }
+function exById(id){ return DB.exercises.find(x=>x.id===id); }
+function rirToPse(rir){ return {0:10,1:9,2:8,3:7,4:6}[rir] ?? 6; }
+function epley(carga, reps){ return carga * (1 + reps/30); }
+let toastTimer=null;
+function toast(msg){
+  let el = document.getElementById('toastEl');
+  if(!el){ el=document.createElement('div'); el.id='toastEl'; el.className='fixed left-1/2 -translate-x-1/2 bottom-24 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-lg'; document.body.appendChild(el); }
+  el.style.background = 'var(--text)'; el.style.color = 'var(--bg)';
+  el.textContent = msg; el.style.opacity='1';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>{ el.style.opacity='0'; }, 2200);
+}
+
+/* ============================= ROUTER ============================= */
+let ROUTE = { screen: DB.profile ? 'home' : 'onboarding', params:{} };
+function nav(screen, params={}){ ROUTE = {screen, params}; render(); window.scrollTo(0,0); }
+function render(){
+  const app = document.getElementById('app');
+  let html = '';
+  if(!DB.profile && ROUTE.screen!=='onboarding'){ ROUTE = {screen:'onboarding', params:{}}; }
+  switch(ROUTE.screen){
+    case 'onboarding': html = screenOnboarding(); break;
+    case 'home': html = screenHome(); break;
+    case 'workouts': html = screenWorkouts(); break;
+    case 'workoutEdit': html = screenWorkoutEdit(ROUTE.params.id); break;
+    case 'execution': html = screenExecution(); break;
+    case 'summary': html = screenSummary(ROUTE.params.sessionId); break;
+    case 'history': html = screenHistory(); break;
+    case 'exerciseHistory': html = screenExerciseHistory(ROUTE.params.exId); break;
+    case 'recovery': html = screenRecovery(); break;
+    case 'settings': html = screenSettings(); break;
+    case 'library': html = screenLibrary(); break;
+    case 'exerciseDetail': html = screenExerciseDetail(ROUTE.params.id); break;
+    case 'muscles': html = screenMuscles(); break;
+    default: html = screenHome();
+  }
+  const showNav = DB.profile && !['onboarding','execution'].includes(ROUTE.screen);
+  app.innerHTML = html + (showNav ? bottomNav() : '') + modalHTML();
+  afterRender();
+  syncWakeLock();
+}
+function afterRender(){
+  if(ROUTE.screen==='exerciseHistory') drawExerciseCharts(ROUTE.params.exId);
+  if(ROUTE.screen==='home') drawFrequencyMini();
+}
+
+/* ============================= NAV BAR ============================= */
+function bottomNav(){
+  const items = [
+    {s:'home', icon:'🏠', label:'Início'},
+    {s:'workouts', icon:'🗂️', label:'Treinos'},
+    {s:'library', icon:'💪', label:'Exercícios'},
+    {s:'history', icon:'📈', label:'Histórico'},
+    {s:'settings', icon:'👤', label:'Perfil'},
+  ];
+  return `<nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto surface border-t flex" style="padding-bottom:env(safe-area-inset-bottom)">
+    ${items.map(it=>`
+      <button onclick="nav('${it.s}')" class="nav-item flex-1 flex flex-col items-center gap-0.5 py-3 tap press ${ROUTE.screen===it.s || (it.s==='workouts'&&ROUTE.screen==='workoutEdit') || (it.s==='history'&&ROUTE.screen==='exerciseHistory') || (it.s==='library'&&ROUTE.screen==='exerciseDetail') || (it.s==='home'&&ROUTE.screen==='muscles') ? 'active':'text-dim'}">
+        <span class="text-lg leading-none">${it.icon}</span>
+        <span class="text-[11px] font-medium">${it.label}</span>
+      </button>`).join('')}
+  </nav>`;
+}
+
+/* ============================= ONBOARDING ============================= */
+const LEVEL_INFO = {
+  iniciante: 'Ainda está consolidando a técnica e consegue evoluir quase semanalmente.',
+  intermediario: 'Possui técnica consistente, mas precisa de várias sessões para progredir.',
+  avancado: 'Utiliza ciclos, controle rigoroso de fadiga e pequenas progressões.'
+};
+function screenOnboarding(){
+  const p = ROUTE.params.draft || {name:'', pesoCorporal:'', goal:'hipertrofia', level:'iniciante', unit:'kg', days:3, theme:'dark'};
+  document.documentElement.setAttribute('data-theme', p.theme);
+  return `<div class="fade-in px-6 pt-14 pb-10">
+    <div class="mb-8">
+      <div class="text-xs tracking-wide text-dim mb-2 font-medium">BEM-VINDO</div>
+      <h1 class="headline text-3xl leading-none mb-2">Vamos montar<br>seu perfil.</h1>
+      <p class="text-dim text-sm">Isso define como suas cargas serão recomendadas.</p>
+    </div>
+
+    <label class="block text-sm font-semibold mb-2">Nome</label>
+    <input id="ob-name" type="text" value="${p.name}" placeholder="Seu nome" class="w-full rounded-xl px-4 py-3.5 mb-6 text-base">
+
+    <label class="block text-sm font-semibold mb-2">Unidade de carga</label>
+    <div class="grid grid-cols-2 gap-2 mb-6">
+      ${['kg','lb'].map(u=>`<button onclick="obPick('unit','${u}')" class="py-3 rounded-xl text-sm font-medium border tap press ${p.unit===u?'bg-red text-white border-transparent':'surface border-c'}">${u.toUpperCase()}</button>`).join('')}
+    </div>
+
+    <label class="block text-sm font-semibold mb-2">Peso corporal (${p.unit})</label>
+    <input id="ob-peso" type="number" step="0.1" inputmode="decimal" value="${p.pesoCorporal}" placeholder="Ex: 78" class="w-full rounded-xl px-4 py-3.5 mb-1.5 text-base">
+    <div class="text-xs text-dim mb-6">Usado para preencher automaticamente a carga em exercícios com peso corporal (flexão, barra fixa etc). Pode deixar em branco e cadastrar depois no Perfil.</div>
+
+    <label class="block text-sm font-semibold mb-2">Objetivo principal</label>
+    <div class="grid grid-cols-3 gap-2 mb-6">
+      ${['forca','hipertrofia','condicionamento'].map(g=>`
+        <button onclick="obPick('goal','${g}')" class="py-3 rounded-xl text-sm font-medium border-c border tap press ${p.goal===g?'bg-red text-white border-transparent':'surface'}">${g==='forca'?'Força':g==='hipertrofia'?'Hipertrofia':'Condicionamento'}</button>`).join('')}
+    </div>
+
+    <label class="block text-sm font-semibold mb-2">Nível</label>
+    <div class="space-y-2 mb-6">
+      ${['iniciante','intermediario','avancado'].map(l=>`
+        <button onclick="obPick('level','${l}')" class="w-full text-left p-4 rounded-xl border tap press ${p.level===l?'border-red bg-red-dim':'surface border-c'}">
+          <div class="font-semibold capitalize mb-0.5">${l}</div>
+          <div class="text-xs text-dim leading-snug">${LEVEL_INFO[l]}</div>
+        </button>`).join('')}
+    </div>
+
+    <label class="block text-sm font-semibold mb-2">Dias disponíveis por semana</label>
+    <div class="grid grid-cols-4 gap-2 mb-6">
+      ${[2,3,4,5,6].map(d=>`<button onclick="obPick('days',${d})" class="py-3 rounded-xl text-sm font-medium border tap press ${p.days===d?'bg-red text-white border-transparent':'surface border-c'}">${d}x</button>`).join('')}
+    </div>
+
+    <label class="block text-sm font-semibold mb-2">Tema</label>
+    <div class="grid grid-cols-2 gap-2 mb-10">
+      ${['claro','escuro'].map(t=>{const val=t==='claro'?'light':'dark'; return `<button onclick="obPick('theme','${val}')" class="py-3 rounded-xl text-sm font-medium border tap press ${p.theme===val?'bg-red text-white border-transparent':'surface border-c'}">${t}</button>`;}).join('')}
+    </div>
+
+    <button onclick="obFinish()" class="w-full btn-big bg-red text-white rounded-xl font-semibold text-base tap press">Começar</button>
+  </div>`;
+}
+function obPick(key,val){
+  const p = ROUTE.params.draft || {name:document.getElementById('ob-name')?.value||'', pesoCorporal:document.getElementById('ob-peso')?.value||'', goal:'hipertrofia', level:'iniciante', unit:'kg', days:3, theme:'dark'};
+  p.name = document.getElementById('ob-name')?.value ?? p.name;
+  p.pesoCorporal = document.getElementById('ob-peso')?.value ?? p.pesoCorporal;
+  p[key]=val;
+  ROUTE.params.draft = p;
+  render();
+}
+function obFinish(){
+  const p = ROUTE.params.draft || {};
+  p.name = document.getElementById('ob-name')?.value || p.name || '';
+  p.pesoCorporal = document.getElementById('ob-peso')?.value || p.pesoCorporal || '';
+  if(!p.name.trim()){ toast('Informe seu nome para continuar.'); return; }
+  DB.profile = {
+    name: p.name.trim(), pesoCorporal: parseFloat(p.pesoCorporal)||null, goal: p.goal||'hipertrofia', level: p.level||'iniciante',
+    unit: p.unit||'kg', days: p.days||3, theme: p.theme||'dark', createdAt: new Date().toISOString()
+  };
+  document.documentElement.setAttribute('data-theme', DB.profile.theme);
+  saveDB();
+  nav('home');
+}
+
+/* ============================= HOME ============================= */
+function weekSessions(){
+  const now = new Date(); const day = now.getDay();
+  const monday = new Date(now); monday.setDate(now.getDate() - ((day+6)%7)); monday.setHours(0,0,0,0);
+  return DB.sessions.filter(s=>s.status==='finalizada' && new Date(s.end) >= monday);
+}
+function lastFinishedSession(){
+  const list = DB.sessions.filter(s=>s.status==='finalizada').sort((a,b)=> new Date(b.end)-new Date(a.end));
+  return list[0] || null;
+}
+function recentProgressions(limit=3){
+  const out = [];
+  const exIds = new Set();
+  DB.sessions.filter(s=>s.status==='finalizada').forEach(s=>{ s.logs.forEach(l=>exIds.add(l.exId)); });
+  exIds.forEach(exId=>{
+    const hist = exerciseHistory(exId);
+    if(hist.length>=2){
+      const last = hist[hist.length-1], prev = hist[hist.length-2];
+      if(last.bestLoad > prev.bestLoad){ out.push({exId, from:prev.bestLoad, to:last.bestLoad, date:last.date}); }
+    }
+  });
+  return out.sort((a,b)=> new Date(b.date)-new Date(a.date)).slice(0,limit);
+}
+function fadigaAlert(){
+  const finished = DB.sessions.filter(s=>s.status==='finalizada').sort((a,b)=>new Date(a.end)-new Date(b.end));
+  const last3 = finished.slice(-3);
+  const recov = DB.recovery.slice(-3);
+  let signals = 0;
+  if(last3.length>=3){
+    let regress=0;
+    last3.forEach(s=>{ const recs = s.logs.map(l=>l.recommendation?.rec); if(recs.includes('manter_reduzir')) regress++; });
+    if(regress>=2) signals++;
+  }
+  if(recov.length){
+    const avgDisp = avg(recov.map(r=>r.disposicao));
+    const avgDor = avg(recov.map(r=>r.dorMuscular));
+    const avgSono = avg(recov.map(r=>r.sono));
+    if(avgDisp<=2) signals++;
+    if(avgDor>=4) signals++;
+    if(avgSono<=2) signals++;
+  }
+  return signals>=2;
+}
+function screenHome(){
+  const p = DB.profile;
+  const active = DB.sessions.find(s=>s.id===DB.activeSessionId && s.status==='em_andamento');
+  const last = lastFinishedSession();
+  const week = weekSessions();
+  const progress = recentProgressions();
+  const fadiga = fadigaAlert();
+  const suggested = suggestWorkout();
+  const prs = recentPRs(4);
+
+  return `<div class="fade-in px-5 pt-8">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <div class="text-xs text-dim font-medium">${greeting()}</div>
+        <h1 class="headline text-2xl mt-0.5">${p.name.split(' ')[0]}</h1>
+      </div>
+      <button onclick="nav('recovery')" class="text-2xl tap press" title="Registrar recuperação">🛌</button>
+    </div>
+
+    ${active ? `
+    <button onclick="nav('execution')" class="w-full text-left bg-red text-white rounded-2xl p-5 mb-4 tap press">
+      <div class="text-xs opacity-80 font-semibold mb-1">TREINO EM ANDAMENTO</div>
+      <div class="headline text-xl mb-1">${active.workoutNome}</div>
+      <div class="text-sm opacity-90">Toque para continuar →</div>
+    </button>` : `
+    <div class="surface rounded-2xl p-5 mb-4">
+      <div class="text-xs text-dim font-semibold mb-1">TREINO DE HOJE</div>
+      <div class="headline text-xl mb-3">${suggested ? suggested.nome : 'Nenhum treino cadastrado'}</div>
+      ${suggested ? `<button onclick="startSession('${suggested.id}')" class="w-full btn-big bg-red text-white rounded-xl font-semibold tap press">Iniciar treino</button>`
+        : `<button onclick="nav('workouts')" class="w-full btn-big bg-red text-white rounded-xl font-semibold tap press">Criar treino</button>`}
+    </div>`}
+
+    ${fadiga ? `
+    <div class="rounded-2xl p-4 mb-4 border" style="border-color:var(--amber); background:var(--surface)">
+      <div class="text-sm font-semibold text-amber mb-1">⚠️ Sinais de fadiga acumulada</div>
+      <div class="text-xs text-dim leading-snug">Seu desempenho e recuperação recentes sugerem considerar um deload. Avalie reduzir volume e intensidade nos próximos treinos.</div>
+    </div>` : ''}
+
+    ${homeMuscleCard()}
+
+    ${prs.length ? `
+    <div class="mb-4">
+      <div class="text-xs text-dim font-semibold mb-2 px-1">🏆 RECORDES RECENTES</div>
+      <div class="space-y-2">
+        ${prs.map(r=>`<button onclick="nav('exerciseHistory',{exId:'${r.exId}'})" class="w-full surface rounded-xl p-3 text-left tap press">
+          <div class="flex items-center justify-between gap-2">
+            <div class="text-sm font-medium truncate">${exName(r.exId)}</div>
+            <div class="text-[11px] text-dim shrink-0">${dateBR(r.date)}</div>
+          </div>
+          <div class="text-xs mt-0.5"><span class="font-semibold text-amber">${r.st.pr.map(t=>PR_LABEL[t]).join(' + ')}</span> <span class="text-dim">· ${prValue(r.st, r.st.pr[0])}</span></div>
+        </button>`).join('')}
+      </div>
+    </div>` : ''}
+
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <div class="surface rounded-2xl p-4">
+        <div class="text-xs text-dim font-medium mb-1">Treinos na semana</div>
+        <div class="num text-2xl">${week.length}<span class="text-dim text-sm num">/${p.days}</span></div>
+      </div>
+      <div class="surface rounded-2xl p-4">
+        <div class="text-xs text-dim font-medium mb-1">Último treino</div>
+        <div class="text-sm font-semibold mt-1">${last ? dateBR(last.date) : '—'}</div>
+        <div class="text-xs text-dim">${last ? last.workoutNome : 'Nenhum ainda'}</div>
+      </div>
+    </div>
+
+    <div class="surface rounded-2xl p-4 mb-4">
+      <div class="text-xs text-dim font-medium mb-2">Frequência — últimas semanas</div>
+      <canvas id="freqMini" height="70"></canvas>
+    </div>
+
+    ${progress.length ? `
+    <div class="mb-4">
+      <div class="text-xs text-dim font-semibold mb-2 px-1">PROGRESSÃO RECENTE</div>
+      <div class="space-y-2">
+        ${progress.map(pr=>`
+          <div class="surface rounded-xl p-3 flex items-center justify-between">
+            <div class="text-sm font-medium">${exName(pr.exId)}</div>
+            <div class="text-sm num text-green">${fmt1(pr.from)} → ${fmt1(pr.to)} ${unit()}</div>
+          </div>`).join('')}
+      </div>
+    </div>` : ''}
+
+    <div class="grid grid-cols-2 gap-3">
+      <button onclick="nav('history')" class="surface rounded-xl p-4 text-left tap press">
+        <div class="text-lg mb-1">📈</div>
+        <div class="text-sm font-semibold">Histórico</div>
+      </button>
+      <button onclick="nav('workouts')" class="surface rounded-xl p-4 text-left tap press">
+        <div class="text-lg mb-1">🗂️</div>
+        <div class="text-sm font-semibold">Montar treino</div>
+      </button>
+    </div>
+  </div>`;
+}
+function greeting(){
+  const h = new Date().getHours();
+  return h<12 ? 'Bom dia' : h<18 ? 'Boa tarde' : 'Boa noite';
+}
+function suggestWorkout(){
+  if(!DB.workouts.length) return null;
+  const finished = DB.sessions.filter(s=>s.status==='finalizada').sort((a,b)=>new Date(b.end)-new Date(a.end));
+  const lastWorkoutId = finished[0]?.workoutId;
+  if(!lastWorkoutId) return DB.workouts[0];
+  const idx = DB.workouts.findIndex(w=>w.id===lastWorkoutId);
+  return DB.workouts[(idx+1) % DB.workouts.length] || DB.workouts[0];
+}
+function drawFrequencyMini(){
+  const el = document.getElementById('freqMini'); if(!el || !window.Chart) return;
+  const weeks = []; const counts = [];
+  for(let i=5;i>=0;i--){
+    const d = new Date(); d.setDate(d.getDate() - i*7);
+    const day = d.getDay(); const monday = new Date(d); monday.setDate(d.getDate()-((day+6)%7)); monday.setHours(0,0,0,0);
+    const sunday = new Date(monday); sunday.setDate(monday.getDate()+7);
+    const c = DB.sessions.filter(s=>s.status==='finalizada' && new Date(s.end)>=monday && new Date(s.end)<sunday).length;
+    weeks.push('S'+(6-i)); counts.push(c);
+  }
+  new Chart(el, { type:'bar', data:{ labels:weeks, datasets:[{data:counts, backgroundColor:getCss('--red'), borderRadius:4}]},
+    options:{ plugins:{legend:{display:false}}, scales:{ x:{grid:{display:false}, ticks:{color:getCss('--dim')}}, y:{display:false, beginAtZero:true} } } });
+}
+function getCss(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+/* ============================= WORKOUTS (CRUD) ============================= */
+function screenWorkouts(){
+  return `<div class="fade-in px-5 pt-8">
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="headline text-2xl">Treinos</h1>
+      <button onclick="newWorkout()" class="bg-red text-white rounded-full w-10 h-10 flex items-center justify-center text-xl tap press">+</button>
+    </div>
+    ${DB.workouts.length===0 ? emptyState('🏋️','Nenhum treino cadastrado','Crie seu primeiro treino para começar a registrar suas sessões.','Criar treino','newWorkout()') : `
+    <div class="space-y-3">
+      ${DB.workouts.map(w=>`
+        <button onclick="nav('workoutEdit',{id:'${w.id}'})" class="w-full surface rounded-2xl p-4 text-left tap press">
+          <div class="flex items-center justify-between mb-1">
+            <div class="font-semibold">${w.nome}</div>
+            <div class="text-dim text-sm">${w.exercicios.length} exerc.</div>
+          </div>
+          <div class="text-xs text-dim">${w.exercicios.slice(0,3).map(e=>exName(e.exId)).join(', ')}${w.exercicios.length>3?'…':''}</div>
+        </button>`).join('')}
+    </div>`}
+  </div>`;
+}
+function newWorkout(){
+  const w = {id:uid(), nome:`Treino ${String.fromCharCode(65+DB.workouts.length)}`, exercicios:[]};
+  DB.workouts.push(w); saveDB();
+  nav('workoutEdit',{id:w.id});
+}
+function screenWorkoutEdit(id){
+  const w = DB.workouts.find(x=>x.id===id);
+  if(!w) return `<div class="p-6">Treino não encontrado.</div>`;
+  return `<div class="fade-in px-5 pt-8">
+    <button onclick="nav('workouts')" class="text-dim text-sm mb-4 tap">← Treinos</button>
+    <input value="${w.nome}" onchange="renameWorkout('${id}', this.value)" class="w-full headline text-2xl bg-transparent border-none px-0 mb-1 focus:outline-none" style="background:transparent;border:none">
+    <div class="flex items-center justify-between mb-6">
+      <div class="text-xs text-dim">${w.exercicios.length} exercício(s)</div>
+      <button onclick="deleteWorkout('${id}')" class="text-xs text-red font-medium">Excluir treino</button>
+    </div>
+
+    <div class="space-y-3 mb-4">
+      ${w.exercicios.map((e,i)=>workoutExerciseCard(w,e,i)).join('')}
+    </div>
+
+    <button onclick="openExercisePicker('${id}')" class="w-full btn-big border-2 border-dashed border-c rounded-xl text-sm font-semibold text-dim tap press">+ Adicionar exercício</button>
+  </div>
+  ${exercisePickerModal(id)}`;
+}
+function workoutExerciseCard(w,e,i){
+  const ex = exById(e.exId);
+  return `<div class="surface rounded-2xl p-4">
+    <div class="flex items-center justify-between mb-3">
+      <div class="font-semibold">${ex?ex.nome:'Exercício'}</div>
+      <div class="flex items-center gap-1">
+        <button onclick="moveExercise('${w.id}',${i},-1)" class="text-dim px-2 tap">↑</button>
+        <button onclick="moveExercise('${w.id}',${i},1)" class="text-dim px-2 tap">↓</button>
+        <button onclick="removeWorkoutExercise('${w.id}',${i})" class="text-red px-2 tap">✕</button>
+      </div>
+    </div>
+    <div class="grid grid-cols-3 gap-2 text-xs">
+      ${numField(w.id,i,'series','Séries',e.series)}
+      ${numField(w.id,i,'repMin','Rep. mín',e.repMin)}
+      ${numField(w.id,i,'repMax','Rep. máx',e.repMax)}
+      ${numField(w.id,i,'pseAlvoMin','PSE min',e.pseAlvoMin,0.5)}
+      ${numField(w.id,i,'pseAlvoMax','PSE máx',e.pseAlvoMax,0.5)}
+      ${numField(w.id,i,'descanso','Descanso(s)',e.descanso)}
+      ${numField(w.id,i,'incremento','Incremento',e.incremento,0.5)}
+    </div>
+    <div class="mt-2">
+      <select onchange="updateWEField('${w.id}',${i},'tipo', this.value)" class="w-full rounded-lg px-2 py-2 text-xs">
+        ${['composto','isolado','maquina','peso-livre','peso-corporal'].map(t=>`<option value="${t}" ${e.tipo===t?'selected':''}>${t}</option>`).join('')}
+      </select>
+    </div>
+    <textarea onchange="updateWEField('${w.id}',${i},'obs', this.value)" placeholder="Observações" class="w-full rounded-lg px-2 py-2 text-xs mt-2" rows="1">${e.obs||''}</textarea>
+  </div>`;
+}
+function numField(wid,i,key,label,val,step=1){
+  return `<label class="block">
+    <div class="text-dim mb-0.5">${label}</div>
+    <input type="number" step="${step}" value="${val}" onchange="updateWEField('${wid}',${i},'${key}', parseFloat(this.value))" class="w-full rounded-lg px-2 py-2">
+  </label>`;
+}
+function renameWorkout(id,val){ const w=DB.workouts.find(x=>x.id===id); w.nome=val||w.nome; saveDB(); }
+function deleteWorkout(id){ askConfirm('Excluir este treino?','Esta ação não pode ser desfeita. O histórico das sessões continua salvo.','Excluir',()=>{ DB.workouts=DB.workouts.filter(w=>w.id!==id); saveDB(); nav('workouts'); }); }
+function moveExercise(wid,i,dir){ const w=DB.workouts.find(x=>x.id===wid); const j=i+dir; if(j<0||j>=w.exercicios.length) return; [w.exercicios[i],w.exercicios[j]]=[w.exercicios[j],w.exercicios[i]]; saveDB(); render(); }
+function removeWorkoutExercise(wid,i){ const w=DB.workouts.find(x=>x.id===wid); w.exercicios.splice(i,1); saveDB(); render(); }
+function updateWEField(wid,i,key,val){ const w=DB.workouts.find(x=>x.id===wid); w.exercicios[i][key]=val; saveDB(); }
+
+function exercisePickerModal(wid){
+  if(ROUTE.params.pickerOpen !== wid) return '';
+  const list = filterExercises(ROUTE.params.pickerQuery, ROUTE.params.pickerGroup, '');
+  return `<div class="fixed inset-0 bg-black/50 z-40 flex items-end" onclick="closeExercisePicker(event)">
+    <div class="w-full max-w-md mx-auto surface rounded-t-3xl p-5 max-h-[80vh] flex flex-col" onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between mb-3">
+        <div class="font-semibold">Adicionar exercício</div>
+        <button onclick="closeExercisePicker()" class="text-dim text-xl">✕</button>
+      </div>
+      <input type="text" placeholder="Buscar exercício..." value="${ROUTE.params.pickerQuery||''}" oninput="ROUTE.params.pickerQuery=this.value; render(); document.getElementById('pickerSearch').focus();" id="pickerSearch" class="w-full rounded-xl px-3 py-2.5 mb-2 text-sm">
+      <div class="mb-2">${chipRow([['','Todos'],...GRUPOS.map(g=>[g,g])], ROUTE.params.pickerGroup||'', 'pickerPickG')}</div>
+      <div class="overflow-y-auto flex-1 space-y-1">
+        ${list.map(e=>`<button onclick="addExerciseToWorkout('${wid}','${e.id}')" class="w-full text-left px-3 py-3 rounded-lg surface2 tap press flex items-center justify-between">
+          <span class="text-sm min-w-0 truncate">${e.nome}</span><span class="text-[11px] text-dim shrink-0 ml-2">${exMeta(e)}</span>
+        </button>`).join('') || '<div class="text-dim text-sm py-6 text-center">Nenhum exercício encontrado.</div>'}
+      </div>
+      <button onclick="openCustomExercise('${wid}')" class="w-full btn-big bg-red text-white rounded-xl font-semibold mt-3 tap press">+ Criar exercício personalizado</button>
+    </div>
+  </div>`;
+}
+function pickerPickG(v){ ROUTE.params.pickerGroup = ROUTE.params.pickerGroup===v ? '' : v; render(); }
+function openExercisePicker(wid){ ROUTE.params.pickerOpen=wid; ROUTE.params.pickerQuery=''; ROUTE.params.pickerGroup=''; render(); setTimeout(()=>document.getElementById('pickerSearch')?.focus(),50); }
+function closeExercisePicker(ev){ ROUTE.params.pickerOpen=null; ROUTE.params.customOpen=false; render(); }
+function addExerciseToWorkout(wid, exId){
+  const w = DB.workouts.find(x=>x.id===wid);
+  const ex = exById(exId);
+  w.exercicios.push({exId, series:3, repMin:8, repMax:12, pseAlvoMin:7, pseAlvoMax:8, descanso:90, incremento: ex.incremento, tipo: ex.tipo, obs:''});
+  saveDB(); ROUTE.params.pickerOpen=null; render();
+}
+function openCustomExercise(wid){ MODAL={html:customExerciseForm(wid)}; render(); }
+function createCustomExercise(wid){
+  const nome = document.getElementById('cexName').value.trim();
+  if(!nome){ toast('Digite um nome para o exercício.'); return; }
+  const tipo = document.getElementById('cexTipo').value;
+  const grupo = document.getElementById('cexGrupo').value;
+  const equip = document.getElementById('cexEquip').value;
+  const inc = parseFloat(document.getElementById('cexInc').value)||(tipo==='peso-corporal'?0:2.5);
+  const ex = {id:uid(), nome, tipo, incremento:inc, grupo, equip, prim:[...(GRUPO_PRIM[grupo]||[])], sec:[], custom:true};
+  DB.exercises.push(ex);
+  if(wid){
+    const w = DB.workouts.find(x=>x.id===wid);
+    w.exercicios.push({exId: ex.id, series:3, repMin:8, repMax:12, pseAlvoMin:7, pseAlvoMax:8, descanso:90, incremento:inc, tipo, obs:''});
+    ROUTE.params.pickerOpen=null;
+  }
+  saveDB(); MODAL=null; toast('Exercício criado.');
+  render();
+}
+
+/* ============================= EXECUTION ============================= */
+function startSession(workoutId){
+  const w = DB.workouts.find(x=>x.id===workoutId);
+  if(!w || !w.exercicios.length){ toast('Este treino não tem exercícios. Edite-o antes de iniciar.'); return; }
+  const session = {
+    id: uid(), workoutId, workoutNome: w.nome, date: todayISO(), start: new Date().toISOString(), end:null,
+    status:'em_andamento', currentExIdx:0,
+    logs: w.exercicios.map(e=>({exId:e.exId, cfg:{...e}, sets:[], recommendation:null}))
+  };
+  DB.sessions.push(session);
+  DB.activeSessionId = session.id;
+  saveDB();
+  nav('execution');
+}
+function activeSession(){ return DB.sessions.find(s=>s.id===DB.activeSessionId && s.status==='em_andamento'); }
+
+function exerciseHistory(exId){
+  // returns array per finished session containing that exercise, sorted asc by date, with computed metrics
+  const out = [];
+  DB.sessions.filter(s=>s.status==='finalizada').sort((a,b)=>new Date(a.end)-new Date(b.end)).forEach(s=>{
+    const log = s.logs.find(l=>l.exId===exId);
+    if(!log) return;
+    const valid = log.sets.filter(st=>!st.aquecimento);
+    if(!valid.length) return;
+    const bestLoad = Math.max(...valid.map(st=>st.carga));
+    const volume = valid.reduce((a,st)=>a+st.carga*st.reps,0);
+    const avgPse = avg(valid.map(st=>st.pse));
+    const e1rmCandidates = valid.filter(st=>st.reps>=3&&st.reps<=10).map(st=>epley(st.carga,st.reps));
+    const e1rm = e1rmCandidates.length? Math.max(...e1rmCandidates) : null;
+    const bestRepsAtBestLoad = Math.max(...valid.filter(st=>st.carga===bestLoad).map(st=>st.reps));
+    out.push({date:s.date, sessionId:s.id, bestLoad, volume, avgPse, e1rm, bestRepsAtBestLoad, sets:valid, recommendation: log.recommendation});
+  });
+  return out;
+}
+
+function screenExecution(){
+  const s = activeSession();
+  if(!s) { return `<div class="p-6 text-center text-dim">Nenhum treino em andamento.<br><button onclick="nav('home')" class="mt-4 text-red font-semibold">Voltar ao início</button></div>`; }
+  const idx = Math.min(s.currentExIdx, s.logs.length-1);
+  const log = s.logs[idx];
+  const cfg = log.cfg;
+  const hist = exerciseHistory(log.exId);
+  const prevSession = hist[hist.length-1];
+  const recommendedLoad = computeRecommendedLoad(cfg, hist);
+  const setsDone = log.sets.filter(st=>!st.aquecimento).length;
+  const nextSetNum = setsDone+1;
+  const restState = ROUTE.params.rest;
+
+  return `<div class="fade-in px-5 pt-6">
+    <div class="flex items-center justify-between mb-4">
+      <button onclick="confirmExitExecution()" class="text-dim text-sm">✕ Sair</button>
+      <div class="text-xs text-dim font-medium">Exercício ${idx+1}/${s.logs.length}</div>
+    </div>
+
+    <div class="scrollx flex gap-1.5 mb-5 pb-1">
+      ${s.logs.map((l,i)=>`<div class="h-1.5 rounded-full flex-1" style="background:${i<idx? 'var(--green)' : i===idx? 'var(--red)':'var(--border)'}"></div>`).join('')}
+    </div>
+
+    <h1 class="headline text-2xl mb-1">${exName(log.exId)}</h1>
+    <div class="text-sm text-dim mb-2">${cfg.series} séries · ${cfg.repMin}–${cfg.repMax} reps · PSE ${cfg.pseAlvoMin}–${cfg.pseAlvoMax} · descanso ${fmtTime(cfg.descanso||90)}</div>
+    <div class="flex flex-wrap gap-1 mb-5">${(exById(log.exId)?.prim||[]).map(m=>`<span class="bg-red-dim text-red rounded-md px-2 py-0.5 text-[11px] font-semibold">${MUSC[m]}</span>`).join('')}${(exById(log.exId)?.sec||[]).map(m=>`<span class="surface2 rounded-md px-2 py-0.5 text-[11px] text-dim">${MUSC[m]}</span>`).join('')}</div>
+
+    ${exVideo(log.exId, 280)}
+
+    <div class="grid grid-cols-2 gap-3 mb-5">
+      <div class="surface rounded-2xl p-4">
+        <div class="text-xs text-dim font-medium mb-1">Sessão anterior</div>
+        <div class="num text-lg">${prevSession ? fmt1(prevSession.bestLoad)+' '+unit()+' × '+prevSession.bestRepsAtBestLoad : '—'}</div>
+      </div>
+      <div class="rounded-2xl p-4 bg-red-dim">
+        <div class="text-xs text-red font-semibold mb-1">Carga recomendada</div>
+        <div class="num text-lg text-red">${recommendedLoad!=null ? fmt1(recommendedLoad)+' '+unit() : 'Definir'}</div>
+      </div>
+    </div>
+    ${prevSession ? `<div class="text-xs text-dim -mt-2 mb-5 px-1">Última vez (${dateBR(prevSession.date)}): <span class="num" style="color:var(--text)">${prevSession.sets.map(st=>fmt1(st.carga)+'×'+st.reps).join(' · ')}</span></div>` : ''}
+
+    ${restState ? restTimerBlock(restState, s, idx, setsDone, cfg) : (setsDone>=cfg.series ? finishExerciseBlock(s, idx) : setLoggerBlock(s, idx, nextSetNum, recommendedLoad))}
+
+    ${log.sets.length ? `<div class="mt-5">
+      <div class="text-xs text-dim font-semibold mb-2">SÉRIES REGISTRADAS</div>
+      <div class="space-y-1.5">
+        ${log.sets.map((st,si)=>`<div class="surface rounded-xl px-3 py-2.5 flex items-center justify-between text-sm">
+          <span class="text-dim">${st.aquecimento? 'Aquec.' : 'Série '+ (log.sets.slice(0,si+1).filter(x=>!x.aquecimento).length)}</span>
+          <span class="num">${fmt1(st.carga)} ${unit()} × ${st.reps}${st.pr&&st.pr.length?' 🏆':''}</span>
+          <span class="text-dim">PSE ${st.pse}</span>
+          <span>${st.tecnica==='boa'?'✅':st.tecnica==='regular'?'🟡':'🔴'}</span>
+          <button onclick="deleteSet(${idx},${si})" class="text-dim">✕</button>
+        </div>`).join('')}
+      </div>
+    </div>` : ''}
+  </div>`;
+}
+
+function setLoggerBlock(s, idx, setNum, recommendedLoad){
+  const cfg = s.logs[idx].cfg;
+  const hist = exerciseHistory(s.logs[idx].exId);
+  const prevSets = hist.length ? hist[hist.length-1].sets : [];
+  const doneHere = s.logs[idx].sets.filter(st=>!st.aquecimento);
+  const lastHere = doneHere[doneHere.length-1];
+  const prevSame = prevSets[setNum-1] || prevSets[prevSets.length-1];
+  const startLoad = cfg.tipo==='peso-corporal' ? (recommendedLoad ?? '') : (lastHere ? lastHere.carga : (recommendedLoad ?? ''));
+  let startReps = lastHere ? lastHere.reps : (prevSame ? prevSame.reps : '');
+  if(!lastHere && prevSame && recommendedLoad!=null && recommendedLoad > prevSame.carga) startReps = cfg.repMin;
+  const draft = ROUTE.params.setDraft || { carga: startLoad, reps: startReps, pse: cfg.pseAlvoMin, mode:'rir', rir:2, tecnica:'boa', amplitude:true, dor:false, aquecimento:false, obs:'' };
+  ROUTE.params.setDraft = draft;
+  const semPesoCadastrado = cfg.tipo==='peso-corporal' && !DB.profile.pesoCorporal;
+  return `<div class="surface rounded-2xl p-4">
+    ${semPesoCadastrado ? `<div class="rounded-xl px-3 py-2.5 mb-3 text-xs bg-red-dim text-red">Cadastre seu peso corporal em <button onclick="nav('settings')" class="underline font-semibold">Perfil</button> para a carga ser preenchida automaticamente.</div>` : ''}
+    <div class="flex items-center justify-between mb-3">
+      <div class="font-semibold text-sm">Série ${draft.aquecimento?'de aquecimento':setNum}</div>
+      <label class="flex items-center gap-1.5 text-xs text-dim">
+        <input type="checkbox" ${draft.aquecimento?'checked':''} onchange="draft.aquecimento=this.checked; render()"> aquecimento
+      </label>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3 mb-3">
+      <label class="block">
+        <div class="text-xs text-dim mb-1">Carga (${unit()})</div>
+        <input type="number" inputmode="decimal" step="0.5" value="${draft.carga}" oninput="draft.carga=this.value" class="w-full rounded-xl px-3 py-3.5 text-xl num text-center">
+      </label>
+      <label class="block">
+        <div class="text-xs text-dim mb-1">Repetições</div>
+        <input type="number" inputmode="numeric" value="${draft.reps}" oninput="draft.reps=this.value" class="w-full rounded-xl px-3 py-3.5 text-xl num text-center">
+      </label>
+    </div>
+
+    <div class="flex gap-2 mb-2">
+      <button onclick="draft.mode='rir'; render()" class="flex-1 py-2 rounded-lg text-xs font-semibold ${draft.mode==='rir'?'bg-red text-white':'surface2'}">Repetições restantes</button>
+      <button onclick="draft.mode='pse'; render()" class="flex-1 py-2 rounded-lg text-xs font-semibold ${draft.mode==='pse'?'bg-red text-white':'surface2'}">PSE direta</button>
+    </div>
+
+    ${draft.mode==='rir' ? `
+    <div class="text-xs text-dim mb-1.5">Quantas repetições tecnicamente corretas você ainda conseguiria fazer?</div>
+    <div class="grid grid-cols-5 gap-1.5 mb-3">
+      ${[0,1,2,3,4].map(r=>`<button onclick="draft.rir=${r}; draft.pse=rirToPse(${r}); render()" class="py-2.5 rounded-lg text-sm font-semibold ${draft.rir===r?'bg-red text-white':'surface2'}">${r===4?'4+':r}</button>`).join('')}
+    </div>
+    <div class="text-xs text-dim mb-3">PSE estimada: <span class="font-semibold text-red">${draft.pse}</span></div>
+    ` : `
+    <div class="text-xs text-dim mb-1.5">PSE (1–10)</div>
+    <input type="range" min="1" max="10" step="0.5" value="${draft.pse}" oninput="draft.pse=parseFloat(this.value); document.getElementById('pseVal').textContent=this.value" class="w-full mb-1">
+    <div class="text-center num text-lg mb-3" id="pseVal">${draft.pse}</div>
+    `}
+
+    <div class="text-xs text-dim mb-1.5">Qualidade técnica</div>
+    <div class="grid grid-cols-3 gap-2 mb-3">
+      ${[['boa','Boa'],['regular','Regular'],['ruim','Ruim']].map(([v,l])=>`<button onclick="draft.tecnica='${v}'; render()" class="py-2.5 rounded-lg text-sm font-medium ${draft.tecnica===v?'bg-red text-white':'surface2'}">${l}</button>`).join('')}
+    </div>
+
+    <label class="flex items-center gap-2 text-sm mb-3">
+      <input type="checkbox" ${draft.amplitude?'checked':''} onchange="draft.amplitude=this.checked"> Amplitude completa preservada
+    </label>
+
+    <button onclick="draft.dor=!draft.dor; render()" class="w-full py-2.5 rounded-lg text-sm font-medium mb-3 ${draft.dor?'bg-red text-white':'surface2'}">${draft.dor?'⚠️ Dor/desconforto relatado':'Registrar dor ou desconforto'}</button>
+
+    <textarea placeholder="Observações (opcional)" oninput="draft.obs=this.value" class="w-full rounded-xl px-3 py-2.5 text-sm mb-4" rows="1">${draft.obs}</textarea>
+
+    <button onclick="confirmSet(${idx})" class="w-full btn-big bg-red text-white rounded-xl font-semibold text-base tap press">Concluir série</button>
+  </div>`;
+}
+Object.defineProperty(window, 'draft', { get(){ return ROUTE.params.setDraft; }, configurable:true });
+
+function confirmSet(idx){
+  const d = ROUTE.params.setDraft;
+  const carga = parseFloat(d.carga), reps = parseInt(d.reps);
+  if(isNaN(carga) || isNaN(reps)){ toast('Informe carga e repetições.'); return; }
+  unlockAudio();
+  const s = activeSession();
+  const log = s.logs[idx];
+  const newSet = { carga, reps, pse:d.pse, rir: d.mode==='rir'?d.rir:null, tecnica:d.tecnica, amplitude:d.amplitude, dor:d.dor, aquecimento:d.aquecimento, obs:d.obs, horario:new Date().toISOString() };
+  const prior = prevWorkSets(log.exId, s.id).concat(log.sets.filter(st=>!st.aquecimento));
+  const prs = detectPR(log.exId, newSet, prior);
+  if(prs.length) newSet.pr = prs;
+  log.sets.push(newSet);
+  saveDB();
+  ROUTE.params.lastPR = prs.length ? prs : null;
+  if(prs.length){ toast('🏆 Novo recorde: '+prs.map(t=>PR_LABEL[t]).join(' + ')); try{ navigator.vibrate && navigator.vibrate(80); }catch(e){} }
+  ROUTE.params.setDraft = null;
+  if(!d.aquecimento){
+    ROUTE.params.rest = { seconds: log.cfg.descanso || 90, total: log.cfg.descanso || 90, startedAt: Date.now() };
+    startRestTicker();
+  }
+  render();
+}
+function deleteSet(idx, si){
+  const s = activeSession(); s.logs[idx].sets.splice(si,1); saveDB(); render();
+}
+let restInterval=null;
+function startRestTicker(){
+  clearInterval(restInterval);
+  restInterval = setInterval(()=>{
+    if(!ROUTE.params.rest) { clearInterval(restInterval); return; }
+    const r = ROUTE.params.rest;
+    const elapsed = Math.floor((Date.now()-r.startedAt)/1000);
+    r.seconds = Math.max(0, r.total - elapsed);
+    const el = document.getElementById('restCountdown');
+    if(el) el.textContent = fmtTime(r.seconds);
+    const ring = document.getElementById('restRing');
+    if(ring){ const pct = 1-(r.seconds/r.total); ring.style.background = `conic-gradient(var(--red) ${pct*360}deg, var(--surface-2) 0deg)`; }
+    if(r.seconds<=0){ clearInterval(restInterval); restDone(); }
+  },250);
+}
+function fmtTime(sec){ const m=Math.floor(sec/60); const s=sec%60; return `${m}:${s.toString().padStart(2,'0')}`; }
+function restTimerBlock(rest, s, idx, setsDone, cfg){
+  const pr = ROUTE.params.lastPR;
+  const next = setsDone>=cfg.series ? 'Séries prescritas concluídas' : `Próxima: série ${setsDone+1} de ${cfg.series}`;
+  return `<div class="surface rounded-2xl p-6 text-center">
+    ${pr ? `<div class="rounded-xl px-3 py-2.5 mb-4 text-sm font-semibold fade-in" style="background:var(--amber);color:var(--bg)">🏆 Novo recorde: ${pr.map(t=>PR_LABEL[t]).join(' + ')}</div>` : ''}
+    <div class="text-xs text-dim font-semibold mb-4">DESCANSO</div>
+    <div id="restRing" class="w-32 h-32 rounded-full mx-auto mb-3 flex items-center justify-center" style="background:conic-gradient(var(--red) 0deg, var(--surface-2) 0deg)">
+      <div class="w-24 h-24 rounded-full flex items-center justify-center" style="background:var(--surface)">
+        <div id="restCountdown" class="num text-2xl">${fmtTime(rest.seconds)}</div>
+      </div>
+    </div>
+    <div class="text-xs text-dim mb-4">${next} · avisa com som ao terminar</div>
+    <div class="grid grid-cols-2 gap-2 mb-2">
+      <button onclick="adjustRest(-15)" class="py-2.5 rounded-xl surface2 text-sm font-semibold tap press">−15 s</button>
+      <button onclick="adjustRest(15)" class="py-2.5 rounded-xl surface2 text-sm font-semibold tap press">+15 s</button>
+    </div>
+    <button onclick="skipRest()" class="w-full btn-big bg-red text-white rounded-xl font-semibold tap press">Pular descanso</button>
+  </div>`;
+}
+function skipRest(){ ROUTE.params.rest=null; ROUTE.params.lastPR=null; clearInterval(restInterval); render(); }
+
+function finishExerciseBlock(s, idx){
+  return `<div class="surface rounded-2xl p-5 text-center">
+    <div class="text-3xl mb-2">✅</div>
+    <div class="font-semibold mb-1">Séries prescritas concluídas</div>
+    <div class="text-xs text-dim mb-4">Você pode adicionar mais uma série ou avançar.</div>
+    <div class="flex gap-2">
+      <button onclick="addExtraSet(${idx})" class="flex-1 py-3 rounded-xl surface2 text-sm font-semibold tap press">+ Série extra</button>
+      <button onclick="nextExercise(${idx})" class="flex-1 py-3 rounded-xl bg-red text-white text-sm font-semibold tap press">${idx===activeSession().logs.length-1?'Finalizar treino':'Próximo exercício'}</button>
+    </div>
+  </div>`;
+}
+function addExtraSet(idx){ ROUTE.params.setDraft=null; render(); }
+function nextExercise(idx){
+  const s = activeSession();
+  s.logs[idx].recommendation = computeRecommendation(s.logs[idx].cfg, s.logs[idx].sets, exerciseHistory(s.logs[idx].exId), DB.profile.level);
+  ROUTE.params.setDraft=null; ROUTE.params.rest=null;
+  if(idx < s.logs.length-1){ s.currentExIdx = idx+1; saveDB(); render(); }
+  else { finishWorkout(); }
+}
+function confirmExitExecution(){
+  askConfirm('Sair do treino?','Seu progresso fica salvo e você pode continuar depois pela tela inicial.','Sair', ()=>{ ROUTE.params.rest=null; clearInterval(restInterval); nav('home'); });
+}
+function finishWorkout(){
+  const s = activeSession();
+  s.logs.forEach(l=>{ if(!l.recommendation) l.recommendation = computeRecommendation(l.cfg, l.sets, exerciseHistory(l.exId), DB.profile.level); });
+  s.status='finalizada'; s.end = new Date().toISOString();
+  DB.activeSessionId=null;
+  saveDB();
+  nav('summary',{sessionId:s.id});
+}
+
+/* ============================= RECOMMENDATION ENGINE ============================= */
+function computeRecommendedLoad(cfg, hist){
+  if(cfg.tipo==='peso-corporal' && DB.profile.pesoCorporal){
+    // Peso corporal é a própria carga: usa sempre o valor mais atual cadastrado no perfil,
+    // em vez de "congelar" o peso da sessão em que o exercício foi registrado pela última vez.
+    return round2(DB.profile.pesoCorporal);
+  }
+  if(!hist.length) return null;
+  const last = hist[hist.length-1];
+  const rec = last.recommendation;
+  const inc = cfg.incremento || 0.5;
+  if(rec && rec.rec==='aumentar') return round2(last.bestLoad + inc);
+  if(rec && rec.rec==='manter_reduzir') return round2(last.bestLoad * 0.95);
+  return round2(last.bestLoad);
+}
+function round2(n){ return Math.round(n*4)/4; }
+
+function computeRecommendation(cfg, sets, hist, nivel){
+  const work = sets.filter(st=>!st.aquecimento);
+  if(!work.length) return {rec:'sem_dados', motivo:'Nenhuma série válida registrada para gerar recomendação.'};
+  const dor = work.some(st=>st.dor);
+  if(dor) return {rec:'interromper_dor', motivo:'Foi relatada dor ou desconforto incomum. Interrompa a progressão neste exercício e procure avaliação profissional caso persista.'};
+
+  const tecnicaOk = work.every(st=>st.tecnica==='boa' && st.amplitude);
+  const minAtingido = work.every(st=>st.reps>=cfg.repMin);
+  const topoDominado = work.every(st=>st.reps>=cfg.repMax);
+  const pseMedia = avg(work.map(st=>st.pse));
+  const unidade = unit();
+
+  if(!tecnicaOk){
+    return {rec:'manter_reduzir', motivo:'A técnica ou amplitude não foram consideradas boas em todas as séries. Mantenha a carga atual ou reduza até restabelecer a execução correta.'};
+  }
+  if(!minAtingido){
+    return {rec:'manter_reduzir', motivo:'O número mínimo de repetições da faixa prescrita não foi atingido em todas as séries. Mantenha ou reduza a carga entre 2% e 10% na próxima sessão.'};
+  }
+  if(pseMedia > cfg.pseAlvoMax + 0.5){
+    return {rec:'manter_reduzir', motivo:`PSE média da sessão (${fmt1(pseMedia)}) acima do alvo (${cfg.pseAlvoMin}–${cfg.pseAlvoMax}). Mantenha ou reduza a carga.`};
+  }
+
+  if(nivel==='iniciante'){
+    if(topoDominado && pseMedia<=8){
+      return {rec:'aumentar', motivo:`Topo da faixa dominado, técnica boa e PSE ${fmt1(pseMedia)}. Aumente o menor incremento disponível (${cfg.incremento}${unidade}) na próxima sessão.`};
+    }
+    if(minAtingido && !topoDominado){
+      return {rec:'manter_reps', motivo:'Dentro da faixa de repetições prescrita. Mantenha a carga e busque mais repetições na próxima sessão.'};
+    }
+    return {rec:'manter', motivo:'Mantenha a carga atual nesta sessão.'};
+  }
+
+  if(nivel==='intermediario'){
+    const last3 = hist.slice(-2);
+    const quedaQueda = work[0] && work[work.length-1] ? ((work[0].reps-work[work.length-1].reps)/work[0].reps) : 0;
+    if(quedaQueda > 0.25){
+      return {rec:'possivel_fadiga', motivo:'Queda superior a 25% entre a primeira e a última série. Pode indicar carga excessiva, descanso insuficiente ou fadiga acumulada.'};
+    }
+    const criterioAtingido = work.every(st=>st.reps>=Math.ceil(cfg.repMax*0.9)) && pseMedia<=9;
+    if(criterioAtingido){
+      const anteriorPendente = last3.length && last3[last3.length-1].recommendation && last3[last3.length-1].recommendation.rec==='aumentar_pendente';
+      if(anteriorPendente){
+        return {rec:'aumentar', motivo:`Critério de aumento confirmado por duas sessões consecutivas. Aumente ${cfg.incremento}${unidade}.`};
+      }
+      return {rec:'aumentar_pendente', motivo:'Critérios de aumento atingidos nesta sessão. Será confirmado se o resultado se repetir na próxima sessão.'};
+    }
+    // evolução de desempenho: mais reps com carga igual/PSE igual ou menor
+    const prevAtSameLoad = hist.slice().reverse().find(h=>Math.abs(h.bestLoad - work[0].carga) < 0.001);
+    if(prevAtSameLoad && work[work.length-1].reps > prevAtSameLoad.bestRepsAtBestLoad && pseMedia <= prevAtSameLoad.avgPse){
+      return {rec:'evolucao_desempenho', motivo:'Aumento de repetições com carga igual e PSE semelhante ou menor. Evolução de desempenho registrada, mesmo sem troca de carga ainda.'};
+    }
+    return {rec:'manter', motivo:'Mantenha a carga e observe a consistência por mais sessões.'};
+  }
+
+  // avançado
+  const e1rmSets = work.filter(st=>st.reps>=3 && st.reps<=10);
+  const e1rm = e1rmSets.length ? Math.max(...e1rmSets.map(st=>epley(st.carga,st.reps))) : null;
+  const trend = hist.slice(-3).map(h=>h.e1rm).filter(x=>x!=null);
+  let trendMsg = '';
+  if(trend.length>=2){
+    const rising = trend[trend.length-1] > trend[0];
+    trendMsg = rising ? ' Tendência do bloco em alta.' : ' Tendência do bloco estável ou em queda — avalie fadiga antes de progredir.';
+  }
+  if(topoDominado && pseMedia<=9 && trend.length>=2 && trend[trend.length-1] > trend[0]){
+    return {rec:'aumentar', motivo:`e1RM em tendência de alta (estimativa: ${e1rm?fmt1(e1rm):'—'}${unidade}), técnica boa e PSE controlada.${trendMsg} Aumente ${cfg.incremento}${unidade} respeitando o incremento mínimo disponível.`};
+  }
+  return {rec:'analisar_tendencia', motivo:`${e1rm? 'e1RM estimado (Epley) desta sessão: '+fmt1(e1rm)+' '+unidade+'.' : 'Registre séries entre 3 e 10 repetições para estimar o e1RM.'}${trendMsg} Não recomendamos aumento com base em uma única sessão.`};
+}
+
+/* ============================= SUMMARY ============================= */
+const REC_LABELS = {
+  aumentar:'Aumentar carga', aumentar_pendente:'Aumento pendente de confirmação', manter_reps:'Manter carga, mais repetições',
+  manter:'Manter carga', manter_reduzir:'Manter ou reduzir carga', possivel_fadiga:'Possível fadiga acumulada',
+  interromper_dor:'Interromper — dor relatada', evolucao_desempenho:'Evolução de desempenho', analisar_tendencia:'Analisar tendência do bloco', sem_dados:'Dados insuficientes'
+};
+const REC_COLOR = { aumentar:'text-green', evolucao_desempenho:'text-green', aumentar_pendente:'text-amber', manter:'text-dim', manter_reps:'text-dim', analisar_tendencia:'text-dim', manter_reduzir:'text-red', possivel_fadiga:'text-red', interromper_dor:'text-red', sem_dados:'text-dim' };
+
+function screenSummary(sessionId){
+  const s = DB.sessions.find(x=>x.id===sessionId);
+  if(!s) return `<div class="p-6">Treino não encontrado.</div>`;
+  const durMin = Math.round((new Date(s.end)-new Date(s.start))/60000);
+  const validSets = s.logs.flatMap(l=>l.sets.filter(st=>!st.aquecimento));
+  const volume = validSets.reduce((a,st)=>a+st.carga*st.reps,0);
+  const prevSessions = DB.sessions.filter(x=>x.workoutId===s.workoutId && x.status==='finalizada' && x.id!==s.id).sort((a,b)=>new Date(b.end)-new Date(a.end));
+  const prev = prevSessions[0];
+  const prevVolume = prev ? prev.logs.flatMap(l=>l.sets.filter(st=>!st.aquecimento)).reduce((a,st)=>a+st.carga*st.reps,0) : null;
+
+  const evoluiu = s.logs.filter(l=>['aumentar','evolucao_desempenho'].includes(l.recommendation?.rec));
+  const manteve = s.logs.filter(l=>['manter','manter_reps','aumentar_pendente','analisar_tendencia'].includes(l.recommendation?.rec));
+  const ajustar = s.logs.filter(l=>['manter_reduzir','possivel_fadiga','interromper_dor'].includes(l.recommendation?.rec));
+
+  return `<div class="fade-in px-5 pt-10 pb-10">
+    <div class="text-center mb-6">
+      <div class="text-4xl mb-2">🏁</div>
+      <h1 class="headline text-2xl">Treino concluído</h1>
+      <div class="text-dim text-sm">${s.workoutNome} · ${dateBR(s.date)}</div>
+    </div>
+
+    <div class="grid grid-cols-3 gap-2 mb-5">
+      <div class="surface rounded-xl p-3 text-center">
+        <div class="num text-lg">${durMin}min</div><div class="text-[11px] text-dim">Duração</div>
+      </div>
+      <div class="surface rounded-xl p-3 text-center">
+        <div class="num text-lg">${s.logs.filter(l=>l.sets.length).length}</div><div class="text-[11px] text-dim">Exercícios</div>
+      </div>
+      <div class="surface rounded-xl p-3 text-center">
+        <div class="num text-lg">${validSets.length}</div><div class="text-[11px] text-dim">Séries válidas</div>
+      </div>
+    </div>
+
+    <div class="surface rounded-2xl p-4 mb-5">
+      <div class="text-xs text-dim font-medium mb-1">Volume total</div>
+      <div class="num text-xl">${fmt1(volume)} ${unit()}</div>
+      ${prevVolume!=null ? `<div class="text-xs mt-1 ${volume>prevVolume?'text-green':'text-dim'}">${volume>prevVolume?'▲':'—'} vs. ${fmt1(prevVolume)} ${unit()} no treino anterior</div>` : ''}
+    </div>
+
+    ${(()=>{ const list=[]; s.logs.forEach(l=>l.sets.forEach(st=>{ if(st.pr&&st.pr.length) list.push({exId:l.exId, st}); }));
+      return list.length ? `<div class="rounded-2xl p-4 mb-5" style="border:1px solid var(--amber); background:var(--surface)">
+        <div class="text-sm font-semibold text-amber mb-2">🏆 ${list.length} recorde${list.length>1?'s':''} neste treino</div>
+        <div class="space-y-1.5">${list.map(r=>`<div class="flex items-center justify-between gap-2 text-sm"><span class="truncate">${exName(r.exId)}</span><span class="text-xs text-dim shrink-0">${r.st.pr.map(t=>PR_LABEL[t]).join(' + ')} · ${prValue(r.st, r.st.pr[0])}</span></div>`).join('')}</div>
+      </div>` : ''; })()}
+
+    ${sectionList('Exercícios que evoluíram', evoluiu, 'text-green')}
+    ${sectionList('Exercícios mantidos', manteve, 'text-dim')}
+    ${sectionList('Precisam de ajuste', ajustar, 'text-red')}
+
+    <button onclick="nav('home')" class="w-full btn-big bg-red text-white rounded-xl font-semibold mt-4 tap press">Voltar ao início</button>
+  </div>`;
+}
+function sectionList(title, logs, color){
+  if(!logs.length) return '';
+  return `<div class="mb-4">
+    <div class="text-xs text-dim font-semibold mb-2 px-1">${title.toUpperCase()}</div>
+    <div class="space-y-2">
+      ${logs.map(l=>`<div class="surface rounded-xl p-3">
+        <div class="flex items-center justify-between">
+          <div class="text-sm font-medium">${exName(l.exId)}</div>
+          <div class="text-xs font-semibold ${color}">${REC_LABELS[l.recommendation?.rec]||''}</div>
+        </div>
+        <div class="text-xs text-dim mt-1 leading-snug">${l.recommendation?.motivo||''}</div>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+/* ============================= HISTORY ============================= */
+function screenHistory(){
+  const exIds = new Set();
+  DB.sessions.filter(s=>s.status==='finalizada').forEach(s=>s.logs.forEach(l=>{ if(l.sets.some(st=>!st.aquecimento)) exIds.add(l.exId); }));
+  const list = [...exIds].map(id=>({id, hist: exerciseHistory(id)})).sort((a,b)=> new Date(b.hist[b.hist.length-1].date) - new Date(a.hist[a.hist.length-1].date));
+
+  return `<div class="fade-in px-5 pt-8">
+    <h1 class="headline text-2xl mb-6">Histórico</h1>
+    ${list.length===0 ? emptyState('📈','Sem histórico ainda','Finalize um treino para começar a acompanhar sua evolução.','Ir para início','nav(\'home\')') : `
+    <div class="space-y-2">
+      ${list.map(item=>{
+        const h = item.hist; const last = h[h.length-1]; const prev = h[h.length-2];
+        const delta = prev ? last.bestLoad-prev.bestLoad : 0;
+        return `<button onclick="nav('exerciseHistory',{exId:'${item.id}'})" class="w-full surface rounded-2xl p-4 text-left tap press">
+          <div class="flex items-center justify-between mb-1">
+            <div class="font-semibold text-sm">${exName(item.id)}</div>
+            <div class="num text-sm ${delta>0?'text-green':'text-dim'}">${fmt1(last.bestLoad)} ${unit()}${delta>0?' ▲':''}</div>
+          </div>
+          <div class="text-xs text-dim">${h.length} sessão(ões) · última em ${dateBR(last.date)}</div>
+        </button>`;
+      }).join('')}
+    </div>`}
+  </div>`;
+}
+
+function screenExerciseHistory(exId){
+  const hist = exerciseHistory(exId);
+  const ex = exById(exId);
+  if(!hist.length) return `<div class="p-6">Sem dados para este exercício.</div>`;
+  const records = {
+    bestLoad: Math.max(...hist.map(h=>h.bestLoad)),
+    bestVolume: Math.max(...hist.map(h=>h.volume)),
+    bestE1rm: Math.max(...hist.filter(h=>h.e1rm).map(h=>h.e1rm), 0),
+  };
+  return `<div class="fade-in px-5 pt-8">
+    <button onclick="nav('history')" class="text-dim text-sm mb-4">← Histórico</button>
+    <h1 class="headline text-2xl mb-1">${exName(exId)}</h1>
+    <div class="text-xs text-dim mb-5">${ex? exMeta(ex)+' · '+ex.tipo : ''} · <button onclick="nav('exerciseDetail',{id:'${exId}',from:'history'})" class="text-red font-semibold">ver músculos</button></div>
+
+    <div class="grid grid-cols-3 gap-2 mb-5">
+      <div class="surface rounded-xl p-3 text-center"><div class="num text-base">${fmt1(records.bestLoad)}</div><div class="text-[10px] text-dim">Melhor carga (${unit()})</div></div>
+      <div class="surface rounded-xl p-3 text-center"><div class="num text-base">${fmt1(records.bestVolume)}</div><div class="text-[10px] text-dim">Melhor volume</div></div>
+      <div class="surface rounded-xl p-3 text-center"><div class="num text-base">${records.bestE1rm? fmt1(records.bestE1rm):'—'}</div><div class="text-[10px] text-dim">e1RM (${unit()})</div></div>
+    </div>
+
+    ${chartCard('chartCarga','Evolução da carga')}
+    ${chartCard('chartVolume','Evolução do volume')}
+    ${chartCard('chartReps','Evolução das repetições')}
+    ${chartCard('chartPse','Evolução da PSE')}
+    ${DB.profile.level==='avancado' ? chartCard('chartE1rm','Evolução do e1RM (estimado)') : ''}
+
+    <div class="text-xs text-dim font-semibold mb-2 px-1 mt-2">SESSÕES</div>
+    <div class="space-y-2">
+      ${hist.slice().reverse().map(h=>`<div class="surface rounded-xl p-3">
+        <div class="flex items-center justify-between mb-1">
+          <div class="text-sm font-semibold">${dateBR(h.date)}</div>
+          <div class="num text-sm">${fmt1(h.bestLoad)} ${unit()}</div>
+        </div>
+        <div class="text-xs text-dim">${h.sets.map(st=>`${fmt1(st.carga)}×${st.reps}${st.pr&&st.pr.length?'🏆':''}`).join(' · ')} — PSE méd. ${fmt1(h.avgPse)}</div>
+        ${h.sets.some(st=>st.pr&&st.pr.length) ? `<div class="mt-1.5">${prBadge([...new Set(h.sets.flatMap(st=>st.pr||[]))])}</div>` : ''}
+        ${h.recommendation ? `<div class="text-xs mt-1 font-medium ${REC_COLOR[h.recommendation.rec]||'text-dim'}">${REC_LABELS[h.recommendation.rec]||''}</div>` : ''}
+        <div class="flex gap-3 mt-2">
+          <button onclick="editSessionSet('${h.sessionId}','${exId}')" class="text-xs text-red font-medium">Editar</button>
+        </div>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+function chartCard(id,title){
+  return `<div class="surface rounded-2xl p-4 mb-3">
+    <div class="text-xs text-dim font-medium mb-2">${title}</div>
+    <canvas id="${id}" height="140"></canvas>
+  </div>`;
+}
+let chartInstances = {};
+function drawExerciseCharts(exId){
+  const hist = exerciseHistory(exId);
+  if(!hist.length || !window.Chart) return;
+  const labels = hist.map(h=>dateBR(h.date));
+  const red = getCss('--red'), dim = getCss('--dim'), border = getCss('--border');
+  const commonOpts = { plugins:{legend:{display:false}}, scales:{ x:{grid:{display:false}, ticks:{color:dim, font:{size:10}}}, y:{grid:{color:border}, ticks:{color:dim, font:{size:10}}} }, elements:{point:{radius:3}} };
+  mkLine('chartCarga', labels, hist.map(h=>h.bestLoad), red, commonOpts);
+  mkLine('chartVolume', labels, hist.map(h=>h.volume), red, commonOpts);
+  mkLine('chartReps', labels, hist.map(h=>h.bestRepsAtBestLoad), red, commonOpts);
+  mkLine('chartPse', labels, hist.map(h=>h.avgPse), red, commonOpts);
+  if(DB.profile.level==='avancado') mkLine('chartE1rm', labels, hist.map(h=>h.e1rm), red, commonOpts);
+}
+function mkLine(id, labels, data, color, opts){
+  const el = document.getElementById(id); if(!el) return;
+  if(chartInstances[id]) chartInstances[id].destroy();
+  chartInstances[id] = new Chart(el, { type:'line', data:{labels, datasets:[{data, borderColor:color, backgroundColor:color+'22', tension:.3, fill:true}]}, options:opts });
+}
+/* ============================= RECOVERY ============================= */
+function screenRecovery(){
+  const today = todayISO();
+  const existing = DB.recovery.find(r=>r.date===today) || {sono:3,disposicao:3,dorMuscular:2,estresse:2,dorArticular:'', obs:''};
+  const d = ROUTE.params.recDraft || existing;
+  ROUTE.params.recDraft = d;
+  return `<div class="fade-in px-5 pt-8 pb-10">
+    <button onclick="nav('home')" class="text-dim text-sm mb-4">← Início</button>
+    <h1 class="headline text-2xl mb-1">Check-in de recuperação</h1>
+    <div class="text-xs text-dim mb-6">${dateBR(today)}</div>
+
+    ${recSlider('sono','Qualidade do sono')}
+    ${recSlider('disposicao','Nível de disposição')}
+    ${recSlider('dorMuscular','Dor muscular')}
+    ${recSlider('estresse','Estresse')}
+
+    <label class="block text-sm font-semibold mb-2">Dor articular ou desconforto</label>
+    <textarea oninput="ROUTE.params.recDraft.dorArticular=this.value" class="w-full rounded-xl px-3 py-2.5 text-sm mb-6" rows="2" placeholder="Descreva se houver">${d.dorArticular||''}</textarea>
+
+    <button onclick="saveRecovery()" class="w-full btn-big bg-red text-white rounded-xl font-semibold tap press">Salvar</button>
+  </div>`;
+}
+function recSlider(key,label){
+  const d = ROUTE.params.recDraft;
+  return `<div class="mb-5">
+    <div class="flex items-center justify-between mb-1.5"><label class="text-sm font-semibold">${label}</label><span class="num text-sm">${d[key]}</span></div>
+    <input type="range" min="1" max="5" step="1" value="${d[key]}" oninput="ROUTE.params.recDraft.${key}=parseInt(this.value); render()">
+  </div>`;
+}
+function saveRecovery(){
+  const d = ROUTE.params.recDraft; const today = todayISO();
+  const idx = DB.recovery.findIndex(r=>r.date===today);
+  const entry = {id: idx>=0?DB.recovery[idx].id:uid(), date:today, ...d};
+  if(idx>=0) DB.recovery[idx]=entry; else DB.recovery.push(entry);
+  saveDB(); ROUTE.params.recDraft=null;
+  toast('Check-in salvo.');
+  nav('home');
+}
+
+/* ============================= SETTINGS ============================= */
+function screenSettings(){
+  const p = DB.profile;
+  return `<div class="fade-in px-5 pt-8 pb-10">
+    <h1 class="headline text-2xl mb-6">Perfil</h1>
+
+    <label class="block text-sm font-semibold mb-2">Nome</label>
+    <input type="text" value="${p.name}" onchange="updateProfile('name', this.value)" class="w-full rounded-xl px-4 py-3 mb-5 text-base">
+
+    <label class="block text-sm font-semibold mb-2">Peso corporal (${unit()})</label>
+    <input type="number" step="0.1" inputmode="decimal" value="${p.pesoCorporal||''}" onchange="updateProfile('pesoCorporal', parseFloat(this.value)||null)" placeholder="Ex: 78" class="w-full rounded-xl px-4 py-3 mb-1.5 text-base">
+    <div class="text-xs text-dim mb-5">Usado para preencher automaticamente a carga em exercícios com peso corporal (flexão, barra fixa etc). Atualize sempre que seu peso mudar.</div>
+
+    <label class="block text-sm font-semibold mb-2">Nível</label>
+    <div class="space-y-2 mb-5">
+      ${['iniciante','intermediario','avancado'].map(l=>`
+        <button onclick="updateProfile('level','${l}')" class="w-full text-left p-3.5 rounded-xl border tap press ${p.level===l?'border-red bg-red-dim':'surface border-c'}">
+          <div class="font-semibold capitalize text-sm">${l}</div>
+          <div class="text-xs text-dim">${LEVEL_INFO[l]}</div>
+        </button>`).join('')}
+    </div>
+
+    <label class="block text-sm font-semibold mb-2">Objetivo</label>
+    <div class="grid grid-cols-3 gap-2 mb-5">
+      ${['forca','hipertrofia','condicionamento'].map(g=>`<button onclick="updateProfile('goal','${g}')" class="py-2.5 rounded-xl text-xs font-medium border tap press ${p.goal===g?'bg-red text-white border-transparent':'surface border-c'}">${g==='forca'?'Força':g==='hipertrofia'?'Hipertrofia':'Condicionamento'}</button>`).join('')}
+    </div>
+
+    <label class="block text-sm font-semibold mb-2">Unidade</label>
+    <div class="grid grid-cols-2 gap-2 mb-5">
+      ${['kg','lb'].map(u=>`<button onclick="updateProfile('unit','${u}')" class="py-2.5 rounded-xl text-xs font-medium border tap press ${p.unit===u?'bg-red text-white border-transparent':'surface border-c'}">${u.toUpperCase()}</button>`).join('')}
+    </div>
+
+    <label class="block text-sm font-semibold mb-2">Dias disponíveis</label>
+    <div class="grid grid-cols-5 gap-2 mb-5">
+      ${[2,3,4,5,6].map(d=>`<button onclick="updateProfile('days',${d})" class="py-2.5 rounded-xl text-xs font-medium border tap press ${p.days===d?'bg-red text-white border-transparent':'surface border-c'}">${d}x</button>`).join('')}
+    </div>
+
+    <label class="block text-sm font-semibold mb-2">Tema</label>
+    <div class="grid grid-cols-2 gap-2 mb-8">
+      ${['claro','escuro'].map(t=>{const val=t==='claro'?'light':'dark'; return `<button onclick="updateProfile('theme','${val}')" class="py-2.5 rounded-xl text-xs font-medium border tap press ${p.theme===val?'bg-red text-white border-transparent':'surface border-c'}">${t}</button>`;}).join('')}
+    </div>
+
+    <div class="text-xs text-dim text-center">Seus dados ficam salvos apenas neste dispositivo/navegador.</div>
+  </div>`;
+}
+function updateProfile(key,val){
+  DB.profile[key]=val;
+  if(key==='theme') document.documentElement.setAttribute('data-theme', val);
+  saveDB(); render();
+}
+
+/* ============================= EMPTY STATE ============================= */
+function emptyState(icon,title,desc,cta,action){
+  return `<div class="text-center py-16 px-4">
+    <div class="text-4xl mb-3">${icon}</div>
+    <div class="font-semibold mb-1">${title}</div>
+    <div class="text-sm text-dim mb-5">${desc}</div>
+    <button onclick="${action}" class="bg-red text-white px-5 py-3 rounded-xl text-sm font-semibold tap press">${cta}</button>
+  </div>`;
+}
+
+/* ============================= MODAL (substitui confirm/prompt) ============================= */
+let MODAL = null; let __modalYes = null;
+function modalHTML(){
+  if(!MODAL) return '';
+  return `<div class="fixed inset-0 bg-black/60 z-[60] flex items-end" onclick="if(event.target===this) closeModal()">
+    <div class="w-full max-w-md mx-auto surface rounded-t-3xl p-5 fade-in" style="padding-bottom:calc(20px + env(safe-area-inset-bottom))">${MODAL.html}</div>
+  </div>`;
+}
+function closeModal(){ MODAL=null; render(); }
+function askConfirm(title, msg, yesLabel, fn){
+  __modalYes = fn;
+  MODAL = { html: `<div class="font-semibold text-lg mb-1">${title}</div>
+    <div class="text-sm text-dim mb-5">${msg}</div>
+    <div class="flex gap-2">
+      <button onclick="closeModal()" class="flex-1 py-3 rounded-xl surface2 text-sm font-semibold tap press">Cancelar</button>
+      <button onclick="modalYes()" class="flex-1 py-3 rounded-xl bg-red text-white text-sm font-semibold tap press">${yesLabel}</button>
+    </div>` };
+  render();
+}
+function modalYes(){ const f=__modalYes; __modalYes=null; MODAL=null; if(f) f(); render(); }
+
+/* ============================= RECORDES PESSOAIS ============================= */
+const PR_LABEL = { carga:'Carga máxima', e1rm:'1RM estimado', reps:'Mais repetições' };
+function prevWorkSets(exId, excludeSessionId){
+  const out=[];
+  DB.sessions.forEach(s=>{
+    if(s.status!=='finalizada' || s.id===excludeSessionId) return;
+    s.logs.forEach(l=>{ if(l.exId===exId) l.sets.forEach(st=>{ if(!st.aquecimento) out.push(st); }); });
+  });
+  return out;
+}
+function detectPR(exId, set, prior){
+  if(!prior.length || set.aquecimento) return [];
+  const bw = exById(exId)?.tipo==='peso-corporal';
+  const prs=[];
+  if(!bw && set.carga > Math.max(...prior.map(p=>p.carga)) + 1e-9) prs.push('carga');
+  if(!bw && !prs.includes('carga') && set.reps>=1 && set.reps<=12){
+    const pe = prior.filter(p=>p.reps<=12).map(p=>epley(p.carga,p.reps));
+    if(pe.length && epley(set.carga,set.reps) > Math.max(...pe) + 0.05) prs.push('e1rm');
+  }
+  const atLeast = prior.filter(p=>p.carga >= set.carga - 1e-9);
+  if(atLeast.length && set.reps > Math.max(...atLeast.map(p=>p.reps))) prs.push('reps');
+  return prs;
+}
+function prValue(st, type){
+  if(type==='e1rm') return `${fmt1(epley(st.carga,st.reps))} ${unit()}`;
+  if(type==='reps') return `${st.reps} reps com ${fmt1(st.carga)} ${unit()}`;
+  return `${fmt1(st.carga)} ${unit()} × ${st.reps}`;
+}
+function recentPRs(limit=4){
+  const out=[];
+  DB.sessions.filter(s=>s.status==='finalizada').sort((a,b)=>new Date(b.end)-new Date(a.end)).forEach(s=>{
+    s.logs.forEach(l=>l.sets.forEach(st=>{ if(st.pr && st.pr.length) out.push({date:s.date, exId:l.exId, st}); }));
+  });
+  return out.slice(0,limit);
+}
+function prBadge(types){
+  return types.map(t=>`<span class="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-md" style="background:var(--amber);color:var(--bg)">🏆 ${PR_LABEL[t]}</span>`).join(' ');
+}
+
+/* ============================= MAPA MUSCULAR ============================= */
+const STATUS_INFO = {
+  fadigado:   { label:'Fadigado',      fill:'var(--red)',   op:1,   desc:'Treino forte nas últimas 48 h' },
+  recuperando:{ label:'Recuperando',   fill:'var(--amber)', op:1,   desc:'Treinado há menos de 3 dias' },
+  pronto:     { label:'Pronto',        fill:'var(--green)', op:1,   desc:'Recuperado e treinado nesta semana' },
+  destreinado:{ label:'Destreinado',   fill:'var(--dim)',   op:.6,  desc:'Sem estímulo há mais de 8 dias' },
+  nunca:      { label:'Sem registro',  fill:'var(--dim)',   op:.18, desc:'Ainda não treinado no app' }
+};
+function muscleStats(){
+  const now = Date.now(); const st = {};
+  Object.keys(MUSC).forEach(k=>st[k]={last:null, load:0, sets7:0});
+  DB.sessions.forEach(s=>{
+    if(s.status!=='finalizada' && s.status!=='em_andamento') return;
+    s.logs.forEach(l=>{
+      const ex = exById(l.exId); if(!ex) return;
+      const w = {}; (ex.prim||[]).forEach(m=>w[m]=1); (ex.sec||[]).forEach(m=>{ if(!w[m]) w[m]=0.5; });
+      l.sets.forEach(set=>{
+        if(set.aquecimento) return;
+        const t = new Date(set.horario || s.end || s.start).getTime();
+        const h = (now-t)/36e5; if(h<0 || isNaN(h)) return;
+        Object.entries(w).forEach(([m,wt])=>{
+          const o = st[m]; if(!o) return;
+          if(!o.last || t>o.last) o.last=t;
+          if(h<=96) o.load += wt*Math.exp(-h/36);
+          if(h<=168) o.sets7 += wt;
+        });
+      });
+    });
+  });
+  Object.values(st).forEach(o=>{
+    const h = o.last ? (now-o.last)/36e5 : Infinity; o.hours = h;
+    o.status = !o.last ? 'nunca' : (h<48 && o.load>=3) ? 'fadigado' : h<72 ? 'recuperando' : h<=192 ? 'pronto' : 'destreinado';
+  });
+  return st;
+}
+function fmtAgo(h){ if(!isFinite(h)) return 'nunca'; if(h<1) return 'agora há pouco'; if(h<24) return `há ${Math.round(h)} h`; const d=Math.floor(h/24); return `há ${d} dia${d>1?'s':''}`; }
+// Figura anatômica (frente à esquerda, costas à direita) gerada de mapa_muscular_ref.png.
+// Cada chave é um músculo de MUSC; "" = áreas neutras (mãos, pés, canela...), "rosto" = rosto/nuca.
+const BODY_PATHS = {"":"M65.8 9.4L65.4 9.4L64.2 8L64.8 9L64.8 9.4L64.2 9.6L63.2 8.6L63.4 8.2L63.2 8.4L61.4 6.8L57.8 5.4L56.2 5.6L54.8 6.4L53.2 6.4L53 7L51.8 7.8L51.6 7.4L50.8 7.8L50.8 8.2L49.2 9.4L49.2 10.2L47.6 11.8L48 12L48 12.4L47.6 12.4L47.4 13.2L48 18.4L48.6 20.2L49.2 20.6L49.6 23.2L49.8 19.4L50.2 18.6L50 16.4L50.8 14.4L51.8 13.2L53.2 12.4L56.4 12.6L57.4 13L60.6 12.4L63.8 12.8L65.4 11.8L65.8 11ZM177.4 6.8L177.4 7.2L177.8 7.4L176.6 9.6L176.4 9L176.4 9.4L176 9.8L175.8 9.6L176 8.2L175.6 9.4L175 10L175.2 10.6L173.8 11L173 11.8L173 12.8L172.6 13.4L172.8 16.6L173.8 20.4L175.6 22.6L177.8 27L186.2 27.2L186.6 26.8L187.6 26.8L187.8 27.2L189.6 23.6L192.2 19.6L193 16L192.6 11.8L191.4 11L191.2 9.8L190.4 9.4L189.2 7.8L186.8 7.4L186 6.6L184.6 6L181.8 6L182.6 6.2L181.6 6.6L182.2 6.8L181 7.4L179.6 8.8L178.8 10.2L178.6 9.6L178.4 9.8L178.2 9.4L177.4 9.4L177.6 8.6L179.4 6.6L180.8 6ZM66.2 11L66 11.6L64.4 13L64.4 13.4L66 16L65.8 18L66.4 19.6L66.4 23.6L66.6 21.2L67.4 20.2L67.8 18.4L68.2 13.4L67.6 11.8L67 11.2L66.8 11.6L66.4 11.6ZM181.6 28.8L178.6 29L178 34L176.8 37.4L174.2 40L171.2 42L181 41.8L181.6 41.4L182 35.6L182 29.2ZM183.8 29L184 41.2L184.8 41.8L191.6 41.8L194.8 42.2L191.8 40.2L189.2 37.8L187.8 34.2L187.2 29.2L186.6 28.8ZM64.6 31L63.2 32.4L62 36L60 40.2L59 43.6L59 46L60 45.4L63.4 38.8L64.4 35ZM51.8 31.4L51.8 35L52.4 37.6L54.4 42.2L56.4 45.8L57 46.2L57.2 43.8L56.6 41.4L53.2 32.8ZM54.4 33.4L57 39.2L58.2 43.4L58.8 40.2L61.8 33.4L59 34.2L56 34ZM64.6 36.8L63.6 40.6L60.8 45.6L62.8 45.2L63.8 43.6L64.4 41ZM51.6 37L51.8 40.8L52.6 44.4L53.2 45.2L55.4 45.8L53 41.6ZM40.4 97.8L38 106.2L36.6 116.4L37.6 112.4L38 108.2L40.2 100.6ZM75.8 98L75.8 100.2L77.6 105.8L78.8 112.2L78 105.6ZM40.6 101L39 108.6L39.8 106.8L41 105.2ZM74.4 102.4L68.2 116.8L64.6 127.8L63 136.8L62.6 143.8L63.8 148L63.8 145.2L65 139L66.8 132.8L69.2 121.4L72.2 111.4ZM42 102.8L43.4 109.2L47.4 123L49 131.2L51.4 139.8L52.2 144L52.4 148L53.4 144.4L53.4 139.6L51.8 129L48.2 117.4ZM12.6 111.8L11.4 113L10.2 115.4L10.2 117.6L11 119L12.6 120.4L14.8 121.4L16.6 121.8L19.6 121.6L21 116.8L21.2 114.4L20.6 112.2L19 111.2L17.6 110.8L14.6 110.8ZM102.8 111.2L101.4 110.8L98.6 110.8L96 111.8L95.2 112.8L95.2 117L96.6 121.6L99.2 121.8L101.4 121.4L103.6 120.4L105.4 118.8L106.2 116.8L105.8 114.6L105 113.2ZM137.6 111.6L136 113.2L135 115L134.8 116.8L135.4 118.4L136.8 120L139 121.2L141.6 121.8L144 121.6L144.8 120.4L145.6 117.6L145.6 112.6L144.6 111.6L142.6 110.8L139.4 110.8ZM227.2 111L223.2 110.8L221.4 111.4L220 112.6L219.8 116.4L220.2 118.6L221.4 121.6L224 121.8L226.6 121.2L228.8 120L230.2 118.6L230.8 117.2L230.6 115L229 112.4ZM203.4 111.4L203.6 117L201.2 124.6L200.6 129.4L200.6 138L201.4 152.6L201.8 149L202.8 146.2L203.6 142.2L204.6 132L204.8 122.2L204.4 117ZM11.6 112L8.8 113.6L7.4 115.8L4.6 118.6L4 118.8L3.4 119.8L3.8 120.2L5.4 120.2L6.8 119.4L8.4 117.6L9.4 117.4L9.4 114.8L10.2 113.4ZM104.6 112L105.6 112.8L106.6 114.4L107 115.6L106.8 117.4L108 117.8L110 119.8L110.8 120.2L112.4 120.2L112.8 119.4L108.8 115.8L107.8 114L106 112.6ZM136.2 112.2L133.8 113.4L132 116L129.6 118.4L128.4 119L128.2 119.8L128.6 120.2L130.2 120.2L131 119.8L132.6 118L133.8 117.2L134.2 117.4L134 115.6L134.4 114.4ZM229.6 112.2L231.4 114.8L231.4 117.4L232.8 117.8L234.6 119.8L235.4 120.2L237 120.2L237.4 119.8L237.4 119.2L236 118.4L234.6 117L233 114.6L231.6 113.2ZM162.2 112.4L161 121.4L161.2 132.4L162 141.4L162.6 145L164 149.4L164.2 153.4L165.2 143L165.4 128.6L164.4 122.8L162.2 116.6ZM9.8 118.6L9.8 119.8L5.4 127.4L5 128.6L5.2 129L6 129.2L6.8 128.4L10.6 122.2L11.4 121.6L11.8 122L11.8 122.8L8.6 131L8.6 132L9.4 132.4L10.2 131.6L13 124.2L14 122.6L14.6 123.4L12.8 131.6L13 132.4L13.8 132.6L14.6 131.4L15.8 124.4L16.6 122.6L15.2 122.6L12.2 121.4L10.4 119.8ZM106.4 118.6L105.8 119.8L104 121.4L101.6 122.4L99.8 122.6L101.6 131.6L102.4 132.6L103.2 132.2L103.2 130.8L101.8 124.4L102 122.6L103 123.4L104 126.6L106.4 132.2L107.2 132.4L107.6 132L107.6 131L104.4 122.8L104.4 122L104.8 121.6L106 122.6L107 124.8L109.2 128.2L110.2 129.2L111 129L111.2 128.6L110.8 127.4L106.6 120.2ZM134.6 118.6L134.4 120L130 127.6L129.8 128.6L130.4 129.2L131.4 128.6L134.8 123L136 121.6L136.6 122.6L133.2 131L133.2 132L133.8 132.4L134.4 132.2L135.6 130L137.8 123.8L138.8 122.6L139.2 123L139.2 124.2L137.6 131.2L137.8 132.4L138.4 132.6L139.2 131.8L140.6 123.8L141.2 122.6L140 122.6L137 121.4L135.2 119.8ZM231 118.8L230.6 119.6L228.6 121.4L226.4 122.4L224.2 122.6L224.8 123.6L226.2 131.4L227 132.6L227.8 132.2L227.8 130.8L226.2 123.4L226.6 122.6L227.2 122.8L230.6 131.6L231.4 132.4L232.2 132L232.2 130.8L229.2 123.2L229 122.2L229.6 121.6L230.6 122.6L234 128.4L235 129.2L235.8 128.4L231.4 120.6ZM39.4 158L39.4 159.8L40 162.8L39.8 171.6L40 178L40.6 183.6L43.2 194L44.8 198.6L46 200.2L46.2 196.4L45.8 190.6L43.4 173L40 158ZM76.8 158L76 158L76 159.2L74.8 162.8L72.2 176.8L70.4 191.4L70 198.6L70.2 200.2L71.6 198.2L73 194.2L75.4 184.4L76.2 177L76.2 164.2ZM221.4 122L221.6 128.8L222.2 129.8L222.8 129.8L223.2 128.8L223 123.8L223.4 122.6L222.2 122.6ZM19.4 122.2L17.4 122.8L17.8 123.6L17.8 129.4L18.2 129.8L18.8 129.8L19.2 129.2ZM96.8 122.2L97 129.2L97.4 129.8L98 129.8L98.4 129.4L98.8 122.8ZM144 122.2L142.2 122.8L142.4 129L143 129.8L143.8 129.4ZM51.4 158L50.6 158L48.6 164L45.2 170.2L44.6 172.4L44.6 174L45 175L45.4 174.8L47.8 170.2L50.2 164.8L51.4 160.6ZM64.6 158L64.8 161L67.2 167.6L70.6 174.4L71.2 175L71.6 174.4L71.6 172L71.2 170.6L68 164.8L65.6 158.2ZM196 153.4L196.2 156.2L195.8 158.2L196.6 159L196.8 160L197 158.8L198 158.2L196.6 155.6ZM170 153.6L169.2 156.2L168 158.2L169 158.8L169.2 160L169.6 158.6L170.2 158.2ZM42.8 156L41.4 157L41.4 160.4L42 161.4L43.2 165.6L44 166.4L45 166.6L46.6 165.4L48 162.8L48.8 160L48.8 158L48.4 157L47.6 156.4ZM73.8 156.2L69 156.2L68.2 156.6L67.6 157.6L67.4 159.6L68.2 162.8L69.8 165.8L71 166.6L72.6 166.2L73.2 165.4L73.8 162.6L74.8 160.4L75 157.8L74.6 156.8ZM66 166.6L66 170.2L64.8 177.8L64.8 182L65.4 185.4L67.4 190.8L68 195L68.2 200L70.4 182.2L70.4 176.8L69.8 174.8L66.6 168.8ZM50 167L49.4 169.2L46.4 174.8L45.8 177.2L46 183L48 199.8L48.2 195.2L48.8 191.2L50.6 186L51.4 181.6L51.2 176.6L50 169.4ZM45 200.2L46 202.2L47.4 202.8L47.2 203.8L47.8 204.4L48.4 206L48.4 203.4L47.8 201.6L47 200.8L45.8 201ZM71.2 200.2L70.2 201L69.2 200.8L68.4 201.6L67.8 204.2L67.8 206.2L68.6 204.2L70 202.6ZM44.4 203L43.8 203.6L42.8 205.8L42 210.4L42.8 211.6L46.2 213.8L47.6 215.2L48.4 217L48.4 213.8L49 210.8L48.8 208.8L47.6 205.8L46 203.4L45.4 203ZM71.8 203L70.6 203.2L69.6 204.4L67.4 209L67.4 212L68 216.6L68.4 215.6L70.6 213.4L73.8 211.4L74.2 210.8L73.8 207L73.2 205.2ZM172.4 209L171.6 215.2L171.2 216L170 216.8L169.2 216.6L168.4 215.6L167.8 211.8L167 209.2L166.2 212L166.4 218.6L167 220L171.4 220.2L172 220L172.8 219L173 213ZM198.8 209L197.6 215.4L196.6 216.6L195.4 216.6L194.4 215.4L193.4 209.4L192.8 213.2L192.8 217.4L193.2 219.2L193.8 220L197.6 220.2L199 220L199.4 219.2L199.6 211.6ZM46 215L43.8 213.6L42 213.8L36.8 220.6L36.8 222.2L37.2 222.6L37.8 222.6L37.6 221.8L37 222L36.8 221.4L37.2 221L37.8 221.2L38.8 220.4L39 220.8L38.4 221.8L39 221.6L39.6 222L39.6 221.6L40.4 220.8L40.8 221.2L40.2 222.2L41 222L41.4 222.4L41.6 221.8L42.6 221.2L42.8 221.6L42.2 222.6L43 222.2L43.8 222.8L44.6 221.2ZM70.2 215L72 221.8L72.6 222.8L73.4 222.2L74.2 222.8L74 223.4L72.6 223.4L72.4 224L73.6 224.2L74.2 223.8L74.2 222.6L73.6 221.6L73.8 221.2L74.4 221.4L74.8 222.6L75.2 222.2L76.2 222.4L75.6 221.4L75.8 220.8L76.6 221.4L76.8 222L77.4 221.6L78 222.4L77.6 222.6L77.4 222.2L76.8 222.8L76.8 223.4L78 222.8L78 222L77.4 221L77.6 220.6L78 220.6L78.4 221.2L79 221L79.4 221.4L79 222L78.6 222L78.4 222.6L78.6 222.8L79.4 222.4L79.6 221L74.4 213.8L72.6 213.6ZM69.6 215.6L68.4 217.2L67.8 218.8L67.8 221.4L68.6 223.4L69.2 224L71.2 224.2L71.8 223.8L71.8 222.8L69.4 222.8L69 222.4L69 222L69.8 221.2L70.8 221.2ZM46.8 215.8L46.4 216.4L45.4 221.2L46.4 221.2L47.4 222.2L47 222.8L44.6 222.8L44.4 223.6L45 224.2L47.2 224L47.8 223.4L48.6 221L48.6 219.4L48 217.4ZM173.4 218.6L173 220.4L171.8 221.2L168.4 221.2L163.2 220.6L162.2 220L162.6 219.2L162.4 219L161.4 219.8L161.2 221.4L163.2 222.8L168.8 224.2L171.8 224.2L173 223.6L173.6 222.4ZM192.2 220.2L192.4 222.6L193.2 223.8L194.2 224.2L197.4 224.2L203.8 222.4L204.8 221.2L204.6 219.8L203.4 219L203.6 220L203.2 220.4L197.6 221.2L194 221.2L193 220.6L192.6 218.8Z","trapezio":"M51 38.4L48.4 41.2L43.6 44L46.6 45L49.4 45L51 44.4L51.4 44ZM65.2 38.4L65.2 41.2L64.8 42.8L65 44.4L66.6 45L70 45L73 44L68.2 41.4ZM168 43.6L170 45.8L171 47.8L174 58L181.2 73.6L182 64L182.2 56L182 48.2L181.4 45.4L179.8 43.8L177 43L171.6 43ZM194 43L187.8 43.2L185.4 44.2L184 46.2L183.6 48.8L183.4 55L183.6 63L184.4 74L185.6 70.8L191.4 58.8L195 47L196.4 44.8L197.8 43.6Z","deltoide_lat":"M36 44.4L32.6 46.2L30.8 48L29 51.2L28.6 52.8L28.8 56.4L29.8 58.6L31.6 60L33.8 59.8L34.8 59.2L36 57.8ZM80 44.4L80 57.6L81.8 59.4L83.2 60L84.4 60L85.8 59.2L87.2 56.8L87.6 55L87.4 52L86.2 49.2L85.2 47.8L82.4 45.4Z","deltoide_ant":"M40.8 44L37.4 44L36.2 44.4L36.2 57.6L38 54.2L38 51.6L38.8 49.6L40 48.2L43.8 46L43.4 45.2ZM74.8 44.2L73.2 45L72.4 46L75.8 48L77.4 49.6L78.2 51.6L78.2 54L79.8 57.4L79.8 44.4L78.6 44Z","deltoide_post":"M165.8 46.4L162.8 45.2L159.6 45.2L157 46.2L154.8 48.2L153.6 50.2L152.8 53L152.8 56.8L153.8 61L159.6 55.6L159.8 52.8L160.8 50.6L162.6 48.8L166.2 47ZM200.2 46.2L199.6 47L202.6 48.4L205 50.8L206 53.4L206 55.4L211.8 61L212.8 56.8L212.8 52.6L212.4 51L211 48.4L209.2 46.6L206.2 45.2L202.6 45.2Z","peito":"M52.6 46.2L47.6 46.2L44.2 47L41.2 48.8L39.6 51L39 53L39 57.4L39.8 60.2L41.2 62.6L42.6 64L45.2 65.6L47.4 66.2L50 66.2L51.8 65.8L55 64.2L56.6 62.2L57.2 59.4L57 50.8L56 48.2L55 47.2ZM62.6 46.4L60.4 47.8L59.6 49L59 51.2L58.8 57.6L59.6 62.4L60.8 64L64.4 65.8L68.4 66.2L70.8 65.6L73.8 63.8L75.2 62.2L76.4 60L77.2 57L77.2 53.4L76.6 51.2L76 50L74.2 48.2L71.8 47L68 46.2Z","dorsais":"M161.8 50.8L162.2 52.4L163.6 54.6L166.4 57.2L169.8 59L171.4 59.4L173.4 59.4L169.6 46.8L163.8 49.2ZM203.6 50.4L199.6 48L196.2 46.8L195 49.6L192.4 59.4L195.8 59L199.6 57L202.6 53.8L203.8 51.4ZM204.4 52.2L202.8 55.2L199.2 58.6L195.6 60.2L193 60.4L194.4 61.6L196.8 62.6L199.4 62.6L202.4 61.4L204 59.6L204.8 57.6L205 54.2ZM161.2 52.4L160.6 54.8L160.8 57.6L161.8 60L163.4 61.6L165 62.4L167.8 62.8L170.4 62.2L172.8 60.4L169.4 60L166 58.2L163.2 55.6ZM161.8 61.6L162.6 65.6L163.6 67.8L165.4 73.8L168 87.4L170.6 90.4L172 92.8L174.6 85L179.4 73.8L179.6 72.2L174 60.2L172 62.6L170.2 63.6L168.6 64L166.8 64L164.4 63.4ZM203.8 61.4L202.4 62.8L200.8 63.6L197.2 64L195.6 63.6L193.8 62.6L191.6 60.2L190 64.4L186 72.4L191.2 85.2L193.8 93L195.4 90L197.8 87.4L200.4 73L201.4 69.8L203 66.4Z","triceps":"M159.6 56.8L155.4 60.8L154.4 62.4L153.8 64.4L153.8 67L155 70L156.2 67.8L158.4 66L160.2 63.8L160.4 61.2ZM206 56.8L205.4 60.2L205.4 63.4L206 64.6L209.8 68.2L210.6 69.8L211.8 66.6L211.8 64.4L211.2 62.4L210.4 61ZM152.8 60L152.8 62.2L151.2 66.6L150.4 72L150.4 78L151 79.6L151.8 80.6L152.6 79.6L154.6 72.8L154.6 71.2L152.6 66.2L152.8 62.2L153.2 62ZM212.8 60.2L212.6 62L213 63L213 66.2L211.2 70.6L211 72.6L213 79.6L213.8 80.6L214.4 80L215.2 77.8L215.2 71.8L214.6 67.2L213 62.4ZM28.2 61.8L26.2 67.8L25.4 75.4L26.2 74.6L26.4 70.6L27.8 65.2ZM88 61.8L88.2 64L89.6 69.4L90 74.6L90.8 75.4L89.8 66.8ZM204.6 63.4L204.2 65.8L204.6 71L205.6 73.8L208 77.8L208.2 79.2L209.4 81.6L210.6 83L211.2 83.2L211.6 82.6L211.6 79.8L210 72.8L210 71.2L208.8 68.6L205.4 65.4ZM161 63.8L160.2 65.6L157 68.4L155.8 70.4L155.4 74.4L154 80L154.2 83.2L154.8 83.2L156.4 81.4L157.6 78L160 73.8L161.4 68.4L161.4 65.4Z","biceps":"M37.4 57.2L36.2 59.6L35 66L33.6 70.6L31.6 75L29.6 78L29.4 79.4L29.8 79.8L31.2 79.6L33 77.8L36 72.2L38.2 64.2L38.2 61.6ZM78.6 57.2L78 60.6L78 64.4L80 71.6L81.8 75.6L83.2 77.8L85 79.6L86.4 79.8L86.8 78.4L84.4 74.8L82.8 71.2L80 60.2ZM32.6 61.4L31.6 61.4L29.8 62.8L27.8 67L27 71.4L27 74L27.4 75.8L28.2 76.8L29 76.6L30.8 74.4L33 69.2L33.6 66.6L33.6 63.2L33.2 62ZM83.6 61.4L83 62L82.6 63.2L82.6 67L83.2 69.4L86 75.4L87.8 76.8L88.6 76.2L89 75L89 70L88.4 67.2L86.6 63L85.2 61.6Z","obliquos":"M76.6 61.6L75.8 63.2L74.2 64.8L72.8 65.8L70.4 66.8L70.4 67.2L71.4 67.8L72.6 67.8L75 66.6L75.8 65.8L76.6 64.2ZM39.6 62L39.8 64.8L41.2 66.6L43.8 67.8L44.8 67.8L45.8 67.2L45.6 66.8L42.4 65.2ZM39.6 66L39.2 67L39.6 69L41.8 71.6L42.8 71.8L44.2 69L41.4 67.8ZM76.6 66L75.4 67.4L74.2 68.2L72 69L73.6 71.8L74.8 71.4L76.4 69.4L76.8 68.4ZM45.8 68.8L44.6 70L43.2 72.8L45.4 74.6L47 75L47 69.8L46.4 68.8ZM70.4 68.8L69.8 68.8L69.2 69.6L69.2 75.2L71 74.4L73 72.8L72 70.6ZM39.2 69.8L39.6 73L41.2 77.2L41.2 75.6L42.2 72.6L41.2 72.2ZM77 69.8L75.2 72.2L74 72.6L74.8 75.2L74.8 77.2L76.4 73.6L77.2 70.4ZM42.8 73.6L42.2 74.8L42.2 75.8L46.6 79L47.4 79.2L47.2 76.8ZM73.6 73.6L73.2 73.6L68.8 76.8L68.8 79.4L74 75.6ZM42 76.6L41.6 79.8L44.6 82.8L47.4 84.4L47.6 82.6L47 80.6ZM74.2 76.6L69.2 80.4L68.4 83L68.8 84.4L72.2 82.2L74.4 80L74.6 78.8ZM74.6 81L73.6 82.2L69.2 85.6L68.6 90.2L69.2 90.2L71.8 88.8L74.2 86.4ZM41.8 81.4L42 86.4L44.4 88.8L47.6 90.4L47.2 86.4L46.8 85.6L43.6 83.2ZM74.6 86.8L74.2 87.8L72.6 89.4L69.6 91L68.8 92L67.8 101.6L67.4 103L67.6 105.4L68.2 105.2L73.6 100.2L75 98.4L75.4 97.2L75.4 93.8L74.6 88.8ZM41.6 87.2L40.8 93.2L41 98L41.4 98.8L46.8 104.2L48.6 105.4L48.8 103L48 99.2L47.4 92.2L46.8 91.2L43.6 89.4ZM167.2 87.8L166.2 89.2L165.4 93L165.4 97.8L165.8 100.2L169 96.6L171.8 94.8L171.8 94.2L170.4 91.8ZM198.8 87.8L196.2 90.6L194 94.8L196.6 96.4L200 100L200.2 98.4L200.6 98.4L200.6 100.8L202.2 103.6L202.4 104.6L201.8 101.6L200.4 98L200.2 91.8L199.4 88.8Z","abdomen":"M56.6 65.6L55.2 65.4L48.8 68.4L48 70.8L48.4 76L48.8 76.8L49.8 77L53.8 74.4L56.8 73L57.4 70.6L57.2 66.8ZM59.8 65.4L59.2 66L58.8 67.4L58.8 71.6L59.2 72.8L60 73.6L63 74.8L65.8 76.8L67 77L67.8 75.8L68 69.8L67.6 68.8L65.6 67.4L63.6 66.8L61 65.4ZM57 75L55.8 74.8L50.2 78L49.2 79L48.8 80L49 82.6L50.4 83.2L56.8 83L57.4 82.4L57.4 75.8ZM59.4 74.8L58.8 75.4L58.6 76.2L58.8 82.6L59.4 83L66.6 83L67.4 81.8L67.4 80L66.8 78.6L62 75.6L60.2 74.8ZM57.4 84.2L57 83.8L49.6 84.6L49 85.2L48.6 86.6L49 90L49.6 90.6L50.6 90.8L57 90.8L57.4 90.2ZM58.6 84.4L58.6 90L59.2 90.8L63.2 91L65.6 90.8L67.2 90.2L67.6 88.8L67.6 86L67 84.8L59.2 83.8ZM66.8 91.6L59.2 92.4L58.6 93L58.6 113.4L58.8 114.4L59.4 115L61.4 114.4L62.4 113.4L64.2 110.2L65 108L66.4 101.8L67.6 92.8L67.4 92ZM49.2 91.8L48.8 92.2L48.8 95.2L49.8 102.6L51 108L53.2 113L54.8 114.6L56.6 115L57.4 114L57.4 92.8L57 92.4Z","lombar":"M185.4 74L184.4 78.8L183.8 84.4L183.8 94.2L184.6 101.6L188.8 98L193.6 95.4L190.4 86.2ZM180.2 74.2L179.2 77.4L175.2 86.6L172.2 95.4L175.4 96.8L177.2 98L181.4 101.6L182 91.6L182 84.8L181.2 77.8Z","antebraco":"M26 75.6L24.4 77L22.6 79.6L20.2 85.2L18.2 98.4L16.6 105.4L15.8 107.4L15.8 108L17 109.2L18 108L20.6 100.4L23.2 94.6L25.4 88.4L26.8 80.6L26.4 75.8ZM90.2 75.6L89.6 76.8L89.4 80.4L89.8 84.2L90.8 88.8L96.2 101.8L98.2 108L98.8 109L99.4 109L100.6 107.8L99.6 105.2L98.4 100.2L95.8 84.4L93.8 79.8L91.8 77ZM215.8 76L215.8 78.4L216.4 78.4L217.6 79.8L219.4 84.2L220.6 96.8L222 103.8L223.8 108.4L224.4 109L225.2 108.6L225.2 109.8L226.2 110L224.8 107.2L223.2 101.6L220.4 84.2L218.8 80.4ZM149.6 76.2L146.8 80.4L145.2 84.2L142.4 101.4L141 106.6L139.2 110.2L140.6 109.8L140.6 109.2L141.4 108.6L142.4 107L143.4 104L145 96.4L146.2 84.4L148 79.8L149 78.6L149.8 78.4ZM149.6 79.2L149.4 82L150.6 90.6L152.6 86.4L153 83.8ZM216 79.2L212.6 83.6L212.8 85.8L215 90.6L215 88.8L216.2 82ZM148.2 81.2L146.8 86.2L145.6 97.8L144.4 104L143 108.4L143.2 109.8L143.6 109.6L148.4 98.8L149.4 95L149.6 90.8L148.2 83ZM217.4 81.2L217.4 83.4L216 89.8L216.2 95.2L218.4 101.8L221.8 109.4L222.4 109.8L222.4 108.6L221.4 105.6L220.2 99.6L218.6 85.2ZM29.6 81.4L28.6 81.6L27.8 82.8L26.6 88.2L25.4 91.8L21 102L19.2 107.2L19 109.6L19.8 108.4L22.8 100.8L29.4 88.2L30.4 84.4L30.2 82ZM86.8 81.4L86.4 81.6L86 82.8L86 85.2L86.6 87.6L93.4 100.8L96.8 109.2L97.4 109.6L97.2 107.8L95.4 102.4L90.6 91.6L89.2 86.8L88.6 83.4L87.8 81.8ZM208.6 81.6L209 85.8L209.8 88.6L217.8 104.4L219.4 108.6L220 111.8L220.2 109.2L219.6 106.6L216.2 98.4L213.6 89.6L212.6 87.6L209.2 84.6L208.8 83.6L209 83.4L209.4 83.8ZM84.6 82.6L84.2 83.6L84.2 86L85.4 89.8L92.8 104L94.6 108.8L95.2 112L95.6 110.8L94.4 105.4L90.6 97.2L87 90.8L86 88.2ZM31.8 83L31 84.6L29.4 90.4L25.8 96.8L22 104.8L20.6 110L20.6 111.2L21 111.8L21.4 109.2L23.2 104.4L31.4 88.2L32.2 84.8ZM156.8 84.2L153.6 87L152.4 88.8L149.4 98.6L145.8 107.2L145.4 109L145.6 112L146.6 107.4L147.8 104.4L155 90.8L156.2 87.6Z","gluteos":"M178.4 100.2L175.8 98.4L173.2 97.4L170.8 97.4L169.2 98L167.6 99.4L166.2 101.4L164.8 104.2L163.6 108.8L164.2 107.6L166.8 105L171 102.2L175.4 100.4ZM187.6 100.2L191.2 100.6L195 102.4L197.6 104L200.8 106.6L202 108L202.4 109L201.4 104.8L199.8 101.6L198.4 99.6L196.6 98L195 97.4L192.8 97.4L189.8 98.6ZM178.4 101.2L176.8 101.2L174 102L169 104.6L165.4 107.6L164.6 108.6L163.8 110.6L163.8 114.6L164.8 117.8L166.2 120.2L170 123.6L172.6 124.8L175.2 125.4L177.4 125.4L179.8 124.4L180.8 123.4L181.4 122.2L182.2 118.4L182.4 108.2L182 105.6L180.8 102.8L179.8 101.8ZM187.6 101.2L186.2 101.8L185 103L183.6 106.8L183.4 115L183.8 119L184.4 122L185.8 124.2L188.6 125.4L190.8 125.4L192.8 125L195.8 123.8L198 122.2L200 120L201.8 116.2L202.2 114.2L202.2 111L201.4 108.8L198.6 106L192.2 102.2L189.2 101.2Z","adutores":"M74.2 100.8L69.4 105.6L67.4 108.2L65 112.2L63 116.4L61 122.8L63.6 126.4L68.2 113.6ZM42.2 101.2L48 113.6L52.4 126.6L55.4 122.6L53.6 117.4L50.2 110.4L48.4 107.6ZM55.8 123.4L55.4 124.4L53.8 126.4L53 128.4L54.2 136.6L54.2 140.8L55.6 133.8L56.2 128.6L56.2 125.6ZM60.2 123.4L60.2 131.2L61.8 140.4L62 136.2L63.2 129.8L63.2 128L62.6 126.6ZM181.2 123.8L181.2 126L180.4 126.6L174.2 126.8L176 129L177.6 132.2L178.8 136.8L179 141.2L180.4 134.4ZM184.6 123.8L185.4 134.6L186.8 141.2L186.8 138.2L187.8 133.2L189.4 129.6L191.6 126.8L185.6 126.6L184.8 126L185.2 125.6Z","quadriceps":"M41.2 106.2L39.8 108.6L38 113.8L37 118L37 121.6L41.8 144.4L43.6 150.6L44.6 153.2L45.2 153.6L46.2 151.6L47.4 145.4L48 138.2L48 133L47.6 129.4L45.4 120ZM75 106.2L70.8 120.2L68.2 131.2L68.2 140.4L68.6 144.8L69.6 150.4L70.8 153.6L71.4 153.6L71.8 153L73.6 147.4L77.8 129.4L79.4 120L79.2 117.8L78.2 113.8L76.6 109.2ZM36.2 120.4L36 126.8L36.6 137.4L37.6 143.6L39.2 148.6L39.6 151.4L39.4 157.8L40 157.8L40 152L39.2 149.2L39.6 149.2L41.4 153L42.2 154L43.2 154.2L43.2 152.6L39.2 137.4L36.4 123.4ZM79.8 121.6L79.6 124.4L78.4 129.4L77.4 135.8L75 146L73 152.6L73 154.2L74 154L74.8 153L76.6 149.2L77 149.2L76.2 151.4L76 157.8L76.8 157.8L76.6 151.4L77.2 148L78.8 142.8L79.6 137L80 130ZM49 135L48.6 143.8L47.2 153.4L47.8 154.8L49 155.8L50.2 155.8L51 154.8L51.4 155L50.8 157.8L51.4 157.8L51.4 145.6ZM67.2 135.2L65.8 140L64.8 145.2L64.6 157.8L65.4 157.8L64.8 155L65 154.8L65.8 155.8L66.8 156L68 155.2L68.8 153.2L68.8 151.2L67.8 146.4L67.2 141.2Z","posteriores":"M166.2 121.6L166.2 143L165.4 152.2L164 159L164 164.2L164.6 162.2L168 156L169.6 151.8L171 145L171.8 133.2L171.8 130L171 126.8L170.2 125.4ZM199.8 121.6L196.8 124.2L195.4 126L194.4 128.8L194.2 132.2L195 144.2L196 150L198 155.8L201.6 162.8L202 164.4L202 159.6L200.4 151.4L199.6 136.8ZM192.4 127.6L190.8 130L189.8 132.4L189.4 134.4L189.4 138.8L192.2 151L192.8 163.2L193.6 161.8L194.8 158L195 150.8L193.8 140.8L193.2 129.8L192.8 128ZM173.4 127.8L172.8 129.2L172.4 138.6L171 153.2L171.4 159L173 163.2L173.2 155.6L173.8 150L176.4 139.2L176.4 134.4L176 132.6L174.8 129.8ZM188.4 134.6L187.8 137.6L187.4 143.6L189.4 151.2L189.6 160.2L190 162.4L191.2 165.6L191.2 167.4L191.4 153.6L190.6 148.2L188.4 139.8ZM177.6 135.6L177.4 140L175.2 148.2L174.6 151.8L174.4 162.4L174.8 166L176.2 160.4L176.4 151L178.4 143.4Z","panturrilha":"M168.2 159L167.4 159.6L166.2 161.4L163.6 166.6L162.6 170.6L162 175.6L162.2 180.6L163.4 187.4L164.2 189L166.2 190.6L167.4 190.4L168 189.8L168.4 188.4ZM197.8 159L197.4 159.8L197.8 169.2L197.6 188.6L198 189.8L198.6 190.4L199.8 190.6L201 190L201.8 189L202.8 186.4L203.6 181L203.8 175L203.2 170L202 165.6L199.8 161.4L198.6 159.6ZM170.2 159.2L169.6 161.4L169.2 170L169.4 185.8L169.8 189.6L171.2 190.6L172.4 190.2L174 188.6L175.4 185.8L176 183.4L176.2 177.8L175.8 174L174.6 168.2L171.4 162L170.8 159.8ZM195.6 159.2L191.6 168L191 168.6L189.6 177.8L189.8 183L190.6 186.2L192.4 189.2L194 190.4L195.4 190.4L196 189.8L196.4 188.4L196.6 165L196.2 161ZM39.2 165L37.6 172.4L37.4 179.2L39.4 191.8L41.6 200L41.6 205.8L41.8 205L43.6 202.4L43.6 199L40.8 188.6L39.4 181.4L39 177.4ZM77 165L77 180.2L75.6 187.8L72.6 199.4L72.6 202.2L74.8 206L74.6 200.4L77.6 188L78.8 178.8L78.6 172.2ZM194.4 191.8L193.2 192.2L192.6 192.8L192.2 193.8L192.2 195.4L195.2 214.8L196 200.4L196 193.2L195.2 192ZM165.2 192L164.6 192.6L164.4 193.6L167.6 207L168.6 212.6L169.4 215.6L169.8 215.8L168.4 193L167.6 192ZM172.2 192L170.4 192.2L169.8 193.8L170 204.6L170.8 214.8L173.6 195.6L173.4 193.2ZM200.8 192L198.2 192L197.6 193L196.2 215.8L197 214L198.2 207.4L201.4 194.2L201.4 192.6Z","rosto":"M53 12.8L52.2 13.2L51 14.6L50.6 16L50.6 18.4L50 19.8L50 23.6L48.4 23.8L48.4 25.4L49.2 26.8L50.2 27L51.2 30.6L54 33L56.4 33.8L60 33.8L62.2 33L65.6 29.4L65.8 27L66.8 26.8L67.4 26.2L67.6 24L68.4 23.8L68.6 21L67 21L66.8 23.8L66.4 24L65.6 16.4L65.2 15L64 13L60.2 12.8L56.8 13.2Z"};
+function bodyMap(colorFn, opts={}){
+  const sel = opts.selected, tap = opts.tap;
+  const svg = Object.entries(BODY_PATHS).map(([k,d])=>{
+    if(!MUSC[k]) return `<path d="${d}" fill="var(--dim)" fill-opacity="${k==='rosto'?.4:.15}"/>`;
+    const c = colorFn(k);
+    const isSel = sel===k;
+    return `<path d="${d}" fill="${c.fill}" fill-opacity="${c.op}" ${isSel?'stroke="var(--text)" stroke-width="0.9" stroke-linejoin="round"':''} ${tap?`onclick="${tap}('${k}')" style="cursor:pointer"`:''}><title>${MUSC[k]}</title></path>`;
+  }).join('');
+  return `<div style="max-width:${opts.max||320}px" class="mx-auto">
+    <svg viewBox="0 0 242 230" class="w-full h-auto" role="img" aria-label="Mapa muscular, frente e costas">${svg}</svg>
+    <div class="grid grid-cols-2 text-[10px] text-dim text-center mt-1"><span>Frente</span><span>Costas</span></div>
+  </div>`;
+}
+function statusLegend(){
+  return `<div class="flex flex-wrap gap-x-3 gap-y-1.5 justify-center mt-3">
+    ${Object.entries(STATUS_INFO).map(([k,i])=>`<span class="flex items-center gap-1 text-[11px] text-dim"><span class="inline-block w-2.5 h-2.5 rounded-full" style="background:${i.fill};opacity:${i.op}"></span>${i.label}</span>`).join('')}
+  </div>`;
+}
+function homeMuscleCard(){
+  const st = muscleStats();
+  const fatig = Object.keys(st).filter(k=>st[k].status==='fadigado').map(k=>MUSC[k]);
+  const ready = Object.keys(st).filter(k=>st[k].status==='destreinado').map(k=>MUSC[k]);
+  return `<div class="surface rounded-2xl p-4 mb-4">
+    <div class="flex items-center justify-between mb-2">
+      <div class="text-xs text-dim font-medium">Mapa muscular</div>
+      <button onclick="nav('muscles')" class="text-xs text-red font-semibold tap">Detalhes →</button>
+    </div>
+    ${bodyMap(k=>STATUS_INFO[st[k].status], {max:260, tap:'openMuscle'})}
+    ${statusLegend()}
+    ${fatig.length ? `<div class="text-xs mt-3 leading-snug"><span class="text-red font-semibold">Fadigados:</span> <span class="text-dim">${fatig.join(', ')}</span></div>` : ''}
+    ${ready.length ? `<div class="text-xs mt-1 leading-snug"><span class="font-semibold">Pedindo estímulo:</span> <span class="text-dim">${ready.join(', ')}</span></div>` : ''}
+  </div>`;
+}
+function openMuscle(k){ nav('muscles',{sel:k}); }
+function selectMuscle(k){ ROUTE.params.sel = ROUTE.params.sel===k ? null : k; render(); }
+function screenMuscles(){
+  const st = muscleStats(); const sel = ROUTE.params.sel;
+  const order = ['fadigado','recuperando','pronto','destreinado','nunca'];
+  const keys = Object.keys(MUSC).sort((a,b)=> order.indexOf(st[a].status)-order.indexOf(st[b].status) || st[a].hours-st[b].hours);
+  const selInfo = sel ? st[sel] : null;
+  const selExs = sel ? DB.exercises.filter(e=>(e.prim||[]).includes(sel)).slice(0,6) : [];
+  return `<div class="fade-in px-5 pt-8 pb-6">
+    <button onclick="nav('home')" class="text-dim text-sm mb-4 tap">← Início</button>
+    <h1 class="headline text-2xl mb-1">Mapa muscular</h1>
+    <div class="text-xs text-dim mb-4">Calculado a partir das séries registradas. Toque num músculo para ver detalhes.</div>
+    <div class="surface rounded-2xl p-4 mb-4">
+      ${bodyMap(k=>STATUS_INFO[st[k].status], {selected:sel, tap:'selectMuscle', max:340})}
+      ${statusLegend()}
+    </div>
+    ${selInfo ? `<div class="surface rounded-2xl p-4 mb-4 fade-in">
+      <div class="flex items-center justify-between mb-1">
+        <div class="font-semibold">${MUSC[sel]}</div>
+        <div class="text-xs font-semibold" style="color:${STATUS_INFO[selInfo.status].fill}">${STATUS_INFO[selInfo.status].label}</div>
+      </div>
+      <div class="text-xs text-dim mb-3">Último estímulo ${fmtAgo(selInfo.hours)} · ${fmt1(selInfo.sets7)} séries nos últimos 7 dias</div>
+      <div class="text-[11px] text-dim font-semibold mb-1.5">EXERCÍCIOS PARA ESTE MÚSCULO</div>
+      <div class="flex flex-wrap gap-1.5">${selExs.map(e=>`<button onclick="nav('exerciseDetail',{id:'${e.id}',from:'muscles'})" class="surface2 rounded-lg px-2.5 py-1.5 text-xs tap press">${e.nome}</button>`).join('')}</div>
+    </div>` : ''}
+    <div class="text-xs text-dim font-semibold mb-2 px-1">TODOS OS MÚSCULOS</div>
+    <div class="space-y-1.5">
+      ${keys.map(k=>{ const o=st[k], i=STATUS_INFO[o.status]; return `<button onclick="selectMuscle('${k}'); window.scrollTo({top:0,behavior:'smooth'})" class="w-full surface rounded-xl px-3 py-2.5 flex items-center gap-3 text-left tap press">
+        <span class="inline-block w-2.5 h-2.5 rounded-full shrink-0" style="background:${i.fill};opacity:${i.op}"></span>
+        <span class="text-sm flex-1">${MUSC[k]}</span>
+        <span class="text-xs text-dim">${o.last? fmtAgo(o.hours)+' · '+fmt1(o.sets7)+' sér/7d' : 'sem registro'}</span>
+      </button>`; }).join('')}
+    </div>
+  </div>`;
+}
+
+/* ============================= BIBLIOTECA (tela) ============================= */
+// Exercícios que já têm vídeo demonstrativo publicado em videos/<id>.mp4 (+ capa .jpg)
+const EX_VIDEOS = new Set(['leg-press','supino-reto','elev-lateral','flexao','agac-pc','agac-livre','rosca-halteres','abdominal-crunch','stiff','cad-ext','afundo','hip-thrust','mesa-flex','prancha','puxada-frontal','rosca-direta','triceps-corda']);
+function exVideo(id, maxH){
+  if(!EX_VIDEOS.has(id)) return '';
+  return `<div class="rounded-2xl overflow-hidden mb-4 mx-auto" style="background:#fff;max-width:${Math.round(maxH*9/16)}px">
+    <video src="videos/${id}.mp4" poster="videos/${id}.jpg" autoplay loop muted playsinline preload="auto" class="w-full h-auto block" aria-label="Demonstração do exercício"></video>
+  </div>`;
+}
+function exMeta(e){ return `${e.grupo||'Outros'}${e.equip? ' · '+(EQUIP_LABEL[e.equip]||e.equip):''}`; }
+function filterExercises(q, g, eq){
+  q = (q||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  return DB.exercises.filter(e=>{
+    const n = e.nome.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+    return (!q || n.includes(q)) && (!g || (e.grupo||'Outros')===g) && (!eq || e.equip===eq);
+  }).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
+}
+function chipRow(items, current, onPick){
+  return `<div class="scrollx flex gap-1.5 pb-1">
+    ${items.map(([v,l])=>`<button onclick="${onPick}('${v}')" class="shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold tap press ${ (current||'')===v ? 'bg-red text-white' : 'surface2' }">${l}</button>`).join('')}
+  </div>`;
+}
+function libListHTML(){
+  const p = ROUTE.params;
+  const list = filterExercises(p.q, p.g, p.eq);
+  if(!list.length) return '<div class="text-dim text-sm py-10 text-center">Nenhum exercício encontrado.</div>';
+  return list.map(e=>{
+    const n = exerciseHistory(e.id).length;
+    return `<button onclick="nav('exerciseDetail',{id:'${e.id}',from:'library'})" class="w-full surface rounded-xl px-3.5 py-3 text-left tap press flex items-center gap-3">
+      <div class="flex-1 min-w-0">
+        <div class="text-sm font-semibold truncate">${e.nome}${e.custom?' <span class="text-[10px] text-dim font-normal">(seu)</span>':''}</div>
+        <div class="text-xs text-dim truncate">${exMeta(e)}</div>
+      </div>
+      ${n ? `<span class="text-[11px] text-dim shrink-0">${n} sessão${n>1?'ões':''}</span>` : ''}
+    </button>`;
+  }).join('');
+}
+function libPickG(v){ ROUTE.params.g = ROUTE.params.g===v ? '' : v; render(); }
+function libPickEq(v){ ROUTE.params.eq = ROUTE.params.eq===v ? '' : v; render(); }
+function screenLibrary(){
+  const p = ROUTE.params;
+  const total = filterExercises(p.q, p.g, p.eq).length;
+  return `<div class="fade-in px-5 pt-8">
+    <div class="flex items-center justify-between mb-4">
+      <h1 class="headline text-2xl">Exercícios</h1>
+      <button onclick="MODAL={html:customExerciseForm('')}; render()" class="bg-red text-white rounded-full w-10 h-10 flex items-center justify-center text-xl tap press" aria-label="Criar exercício">+</button>
+    </div>
+    <input id="libSearch" type="text" placeholder="Buscar entre ${DB.exercises.length} exercícios..." value="${p.q||''}" oninput="ROUTE.params.q=this.value; document.getElementById('libList').innerHTML=libListHTML()" class="w-full rounded-xl px-3.5 py-3 mb-3 text-sm">
+    <div class="mb-2">${chipRow([['','Todos'],...GRUPOS.map(g=>[g,g])], p.g||'', 'libPickG')}</div>
+    <div class="mb-3">${chipRow(Object.entries(EQUIP_LABEL), p.eq||'', 'libPickEq')}</div>
+    <div class="text-[11px] text-dim mb-2 px-1">${total} exercício(s)</div>
+    <div id="libList" class="space-y-1.5 pb-4">${libListHTML()}</div>
+  </div>`;
+}
+function screenExerciseDetail(id){
+  const ex = exById(id);
+  if(!ex) return `<div class="p-6">Exercício não encontrado.</div>`;
+  const hist = exerciseHistory(id);
+  const prim = ex.prim||[], sec = ex.sec||[];
+  const back = ROUTE.params.from || 'library';
+  const backLabel = {library:'Exercícios', muscles:'Mapa muscular'}[back] || 'Voltar';
+  const best = hist.length ? Math.max(...hist.map(h=>h.bestLoad)) : null;
+  const e1 = hist.filter(h=>h.e1rm).map(h=>h.e1rm);
+  return `<div class="fade-in px-5 pt-8 pb-6">
+    <button onclick="nav('${back}')" class="text-dim text-sm mb-4 tap">← ${backLabel}</button>
+    <h1 class="headline text-2xl mb-1">${ex.nome}</h1>
+    <div class="text-xs text-dim mb-4">${exMeta(ex)} · ${ex.tipo} · incremento ${ex.incremento||0} ${unit()}</div>
+    ${exVideo(id, 420)}
+    <div class="surface rounded-2xl p-4 mb-4">
+      ${bodyMap(k=> prim.includes(k) ? {fill:'var(--red)',op:1} : sec.includes(k) ? {fill:'var(--red)',op:.4} : {fill:'var(--dim)',op:.15}, {max:300})}
+      <div class="flex justify-center gap-4 mt-3 text-[11px] text-dim">
+        <span class="flex items-center gap-1"><span class="inline-block w-2.5 h-2.5 rounded-full" style="background:var(--red)"></span>Principal</span>
+        <span class="flex items-center gap-1"><span class="inline-block w-2.5 h-2.5 rounded-full" style="background:var(--red);opacity:.4"></span>Secundário</span>
+      </div>
+    </div>
+    <div class="surface rounded-2xl p-4 mb-4">
+      <div class="text-[11px] text-dim font-semibold mb-1.5">MÚSCULOS PRINCIPAIS</div>
+      <div class="flex flex-wrap gap-1.5 mb-3">${prim.length? prim.map(m=>`<span class="bg-red-dim text-red rounded-lg px-2.5 py-1 text-xs font-semibold">${MUSC[m]}</span>`).join('') : '<span class="text-xs text-dim">Não definido</span>'}</div>
+      ${sec.length ? `<div class="text-[11px] text-dim font-semibold mb-1.5">SECUNDÁRIOS</div>
+      <div class="flex flex-wrap gap-1.5">${sec.map(m=>`<span class="surface2 rounded-lg px-2.5 py-1 text-xs">${MUSC[m]}</span>`).join('')}</div>` : ''}
+    </div>
+    ${hist.length ? `<div class="grid grid-cols-3 gap-2 mb-3">
+      <div class="surface rounded-xl p-3 text-center"><div class="num text-base">${fmt1(best)}</div><div class="text-[10px] text-dim">Melhor carga</div></div>
+      <div class="surface rounded-xl p-3 text-center"><div class="num text-base">${e1.length?fmt1(Math.max(...e1)):'—'}</div><div class="text-[10px] text-dim">1RM estimado</div></div>
+      <div class="surface rounded-xl p-3 text-center"><div class="num text-base">${hist.length}</div><div class="text-[10px] text-dim">Sessões</div></div>
+    </div>
+    <button onclick="nav('exerciseHistory',{exId:'${id}'})" class="w-full py-3 rounded-xl surface text-sm font-semibold mb-3 tap press">Ver histórico completo</button>` : ''}
+    <button onclick="openAddToWorkout('${id}')" class="w-full btn-big bg-red text-white rounded-xl font-semibold tap press">Adicionar a um treino</button>
+  </div>`;
+}
+function openAddToWorkout(exId){
+  if(!DB.workouts.length){ toast('Crie um treino primeiro na aba Treinos.'); return; }
+  MODAL = { html: `<div class="font-semibold text-lg mb-3">Adicionar a qual treino?</div>
+    <div class="space-y-1.5 mb-3">${DB.workouts.map(w=>`<button onclick="addToWorkoutFromLib('${w.id}','${exId}')" class="w-full surface2 rounded-xl px-3.5 py-3 text-left text-sm font-semibold tap press">${w.nome} <span class="text-dim font-normal text-xs">· ${w.exercicios.length} exerc.</span></button>`).join('')}</div>
+    <button onclick="closeModal()" class="w-full py-3 rounded-xl text-sm text-dim">Cancelar</button>` };
+  render();
+}
+function addToWorkoutFromLib(wid, exId){
+  const w = DB.workouts.find(x=>x.id===wid); const ex = exById(exId);
+  w.exercicios.push({exId, series:3, repMin:8, repMax:12, pseAlvoMin:7, pseAlvoMax:8, descanso:90, incremento: ex.incremento, tipo: ex.tipo, obs:''});
+  saveDB(); MODAL=null; toast(`Adicionado ao ${w.nome}.`); render();
+}
+function customExerciseForm(wid){
+  return `<div class="font-semibold text-lg mb-3">Novo exercício</div>
+    <input id="cexName" type="text" placeholder="Nome do exercício" class="w-full rounded-xl px-3 py-2.5 mb-2 text-sm">
+    <div class="grid grid-cols-2 gap-2 mb-2">
+      <select id="cexGrupo" class="w-full rounded-xl px-3 py-2.5 text-sm">${GRUPOS.map(g=>`<option value="${g}">${g}</option>`).join('')}</select>
+      <select id="cexEquip" class="w-full rounded-xl px-3 py-2.5 text-sm">${Object.entries(EQUIP_LABEL).map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}</select>
+    </div>
+    <div class="grid grid-cols-2 gap-2 mb-4">
+      <select id="cexTipo" class="w-full rounded-xl px-3 py-2.5 text-sm">${['composto','isolado','maquina','peso-livre','peso-corporal'].map(t=>`<option value="${t}">${t}</option>`).join('')}</select>
+      <input id="cexInc" type="number" step="0.5" placeholder="Incremento (${unit()})" value="2.5" class="w-full rounded-xl px-3 py-2.5 text-sm">
+    </div>
+    <button onclick="createCustomExercise('${wid}')" class="w-full btn-big bg-red text-white rounded-xl font-semibold tap press">Criar exercício</button>`;
+}
+
+/* ============================= EDITAR SÉRIES (substitui prompt) ============================= */
+function editSessionSet(sessionId, exId){
+  const s = DB.sessions.find(x=>x.id===sessionId);
+  const log = s && s.logs.find(l=>l.exId===exId);
+  if(!log) return;
+  MODAL = { html: `<div class="font-semibold text-lg mb-1">Editar séries</div>
+    <div class="text-xs text-dim mb-3">${exName(exId)} · ${dateBR(s.date)}</div>
+    <div class="space-y-2 mb-4 max-h-[50vh] overflow-y-auto">
+      ${log.sets.map((st,i)=>`<div class="grid grid-cols-[64px_1fr_1fr] gap-2 items-center">
+        <div class="text-xs text-dim">${st.aquecimento?'Aquec.':'Série '+(i+1)}</div>
+        <input id="es-c-${i}" type="number" step="0.5" inputmode="decimal" value="${st.carga}" class="rounded-lg px-2 py-2 text-sm num text-center" aria-label="Carga">
+        <input id="es-r-${i}" type="number" inputmode="numeric" value="${st.reps}" class="rounded-lg px-2 py-2 text-sm num text-center" aria-label="Repetições">
+      </div>`).join('')}
+    </div>
+    <div class="flex gap-2">
+      <button onclick="closeModal()" class="flex-1 py-3 rounded-xl surface2 text-sm font-semibold tap press">Cancelar</button>
+      <button onclick="saveEditedSets('${sessionId}','${exId}')" class="flex-1 py-3 rounded-xl bg-red text-white text-sm font-semibold tap press">Salvar</button>
+    </div>` };
+  render();
+}
+function saveEditedSets(sessionId, exId){
+  const s = DB.sessions.find(x=>x.id===sessionId); const log = s.logs.find(l=>l.exId===exId);
+  log.sets.forEach((st,i)=>{
+    const c = parseFloat(document.getElementById('es-c-'+i)?.value), r = parseInt(document.getElementById('es-r-'+i)?.value);
+    if(!isNaN(c)) st.carga=c; if(!isNaN(r)) st.reps=r;
+  });
+  saveDB(); MODAL=null; toast('Séries atualizadas.'); render();
+}
+
+/* ============================= ÁUDIO / TELA ACESA ============================= */
+let audioCtx = null;
+function unlockAudio(){
+  try { audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)(); if(audioCtx.state==='suspended') audioCtx.resume(); } catch(e){}
+}
+function beep(){
+  try {
+    if(!audioCtx) return;
+    [0, 0.25, 0.5].forEach((t,i)=>{
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type='sine'; o.frequency.value = i===2 ? 1320 : 880;
+      g.gain.setValueAtTime(0.0001, audioCtx.currentTime+t);
+      g.gain.exponentialRampToValueAtTime(0.35, audioCtx.currentTime+t+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime+t+(i===2?0.45:0.18));
+      o.connect(g).connect(audioCtx.destination); o.start(audioCtx.currentTime+t); o.stop(audioCtx.currentTime+t+0.5);
+    });
+  } catch(e){}
+}
+let wakeLock = null;
+async function syncWakeLock(){
+  try {
+    if(ROUTE.screen==='execution'){ if(!wakeLock && navigator.wakeLock){ wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener && wakeLock.addEventListener('release', ()=>{ wakeLock=null; }); } }
+    else if(wakeLock){ await wakeLock.release(); wakeLock=null; }
+  } catch(e){ wakeLock=null; }
+}
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') syncWakeLock(); });
+function restDone(){
+  ROUTE.params.rest = null; ROUTE.params.lastPR = null;
+  beep();
+  try { navigator.vibrate && navigator.vibrate([200,100,200]); } catch(e){}
+  if(ROUTE.screen==='execution') render();
+  toast('Descanso concluído. Bora pra próxima série!');
+}
+function adjustRest(delta){
+  const r = ROUTE.params.rest; if(!r) return;
+  r.total = Math.max(5, r.total + delta);
+  const left = r.total - Math.floor((Date.now()-r.startedAt)/1000);
+  if(left<=0){ clearInterval(restInterval); restDone(); return; }
+  r.seconds = left;
+  const el = document.getElementById('restCountdown'); if(el) el.textContent = fmtTime(left);
+}
+
+/* ============================= INIT ============================= */
+if(DB.profile) document.documentElement.setAttribute('data-theme', DB.profile.theme);
+else document.documentElement.setAttribute('data-theme','dark');
+render();
+</script>
+</body>
+</html>
+
+</body></html>
