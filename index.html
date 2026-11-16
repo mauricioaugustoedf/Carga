@@ -1451,7 +1451,7 @@ function screenMuscles(){
 
 /* ============================= BIBLIOTECA (tela) ============================= */
 // Exercícios que já têm vídeo demonstrativo publicado em videos/<id>.mp4 (+ capa .jpg)
-const EX_VIDEOS = new Set(['leg-press','supino-reto','elev-lateral','flexao','agac-pc','agac-livre','rosca-halteres','abdominal-crunch','stiff','cad-ext','afundo','hip-thrust','mesa-flex','prancha','puxada-frontal','rosca-direta','triceps-corda','remada-baixa','desenv-halter','supino-inclinado-halter','remada-unilateral','panturrilha']);
+const EX_VIDEOS = new Set(['leg-press','supino-reto','elev-lateral','flexao','agac-pc','agac-livre','rosca-halteres','abdominal-crunch','stiff','cad-ext','afundo','hip-thrust','mesa-flex','prancha','puxada-frontal','rosca-direta','triceps-corda','remada-baixa','desenv-halter','supino-inclinado-halter','remada-unilateral','panturrilha','cadeira-flex','abducao','aducao','crucifixo-halter','peck-deck','crossover','hack','triceps-pulley','rosca-martelo']);
 function exVideo(id, maxH){
   if(!EX_VIDEOS.has(id)) return '';
   return `<div class="rounded-2xl overflow-hidden mb-4 mx-auto" style="background:#fff;max-width:${Math.round(maxH*9/16)}px">
